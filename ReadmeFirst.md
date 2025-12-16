@@ -53,3 +53,17 @@ Pastikan `KEY` di `docker-compose.yaml` sama dengan yang dipakai panel.
 5. Pantau log jika ada kendala:
    - Gateway Node (via panel start): `panel/storage/logs/npm-server.log`
    - Docker mode: `docker compose logs -f`
+
+## 6) Installer Otomatis (Server Baru)
+Script ini akan memasang dependensi (Docker + Compose, Node 20, PHP 8.4 + ekstensi, Composer), menyiapkan `.env` gateway/panel, menginstal dependensi Node/Composer, menjalankan migrasi, dan build panel. Jika suatu komponen sudah ada, akan dilewati.
+
+### Menjalankan
+```bash
+sudo bash scripts/install-wa-gateway.sh
+```
+
+### Sesudah Installer
+- Panel: `cd /home/wa-gateway/panel && php artisan serve --host 0.0.0.0 --port 8000`
+  - Login awal: `admin / admin`, segera ganti di menu Profil.
+- Gateway: `cd /home/wa-gateway && node --import node_modules/tsx/dist/loader.mjs src/index.ts`
+  - Atau kontrol via tombol Start/Stop di panel.
