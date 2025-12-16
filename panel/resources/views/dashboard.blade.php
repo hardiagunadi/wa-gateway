@@ -13,15 +13,24 @@
                 <p class="text-sm text-slate-500">WA Gateway</p>
                 <h1 class="text-3xl font-semibold">Control Panel</h1>
             </div>
-            <div class="text-right text-sm">
-                <p class="text-slate-500">API Base</p>
-                <p class="font-semibold">{{ $gatewayConfig['base'] }}</p>
-                @if($gatewayConfig['key'])
-                    @php $masked = str_repeat('•', max(strlen($gatewayConfig['key']) - 3, 3)); @endphp
-                    <p class="text-xs text-slate-500">API Key: {{ $masked }}</p>
-                @else
-                    <p class="text-xs text-amber-600">API Key kosong (akses publik)</p>
-                @endif
+            <div class="flex items-center gap-4">
+                <div class="text-right text-sm">
+                    <p class="text-slate-500">API Base</p>
+                    <p class="font-semibold">{{ $gatewayConfig['base'] }}</p>
+                    @if($gatewayConfig['key'])
+                        @php $masked = str_repeat('•', max(strlen($gatewayConfig['key']) - 3, 3)); @endphp
+                        <p class="text-xs text-slate-500">API Key: {{ $masked }}</p>
+                    @else
+                        <p class="text-xs text-amber-600">API Key kosong (akses publik)</p>
+                    @endif
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('profile.show') }}" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 hover:bg-slate-300 text-xs">Profil</a>
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button class="px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 text-xs">Logout</button>
+                    </form>
+                </div>
             </div>
         </header>
 

@@ -10,4 +10,4 @@ services:
     ports:
       - "5001:5001"
     environment:
-      - KEY= # make your own api key (optional)
+      - KEY=a3e403e441cd6d549d99f69c6f0d48be

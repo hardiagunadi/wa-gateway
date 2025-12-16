@@ -20,6 +20,8 @@ class NpmService
 
     public function start(): int
     {
+        $this->cleanupStalePid();
+
         if ($this->isRunning()) {
             throw new RuntimeException('Server already running.');
         }
@@ -28,18 +30,20 @@ class NpmService
             throw new RuntimeException('Working directory not found: ' . $this->workingDir);
         }
 
-        $process = Process::fromShellCommandline($this->command, $this->workingDir);
-        $process->setTimeout(null);
+        if (!is_dir(dirname($this->logFile))) {
+            mkdir(dirname($this->logFile), 0755, true);
+        }
 
-        // Capture output to a log file for debugging.
-        $process->start(function ($type, $buffer) {
-            file_put_contents($this->logFile, $buffer, FILE_APPEND);
-        });
+        $command = $this->buildCommand();
 
-        // Give the process a moment to boot and get a PID.
-        usleep(400000);
+        // Run detached so the PHP request lifecycle does not kill the process.
+        $cmd = 'cd ' . escapeshellarg($this->workingDir) . ' && nohup ' . $command . ' >> ' . escapeshellarg($this->logFile) . ' 2>&1 & echo $!';
 
-        $pid = $process->getPid();
+        $process = Process::fromShellCommandline($cmd);
+        $process->setTimeout(10);
+        $process->run();
+
+        $pid = (int) trim($process->getOutput());
         if (!$pid || !$this->isPidRunning($pid)) {
             throw new RuntimeException('Failed to start npm server. Check npm configuration or logs.');
         }
@@ -57,6 +61,7 @@ class NpmService
     {
         $pid = $this->getPid();
         if (!$pid) {
+            $this->cleanupStalePid();
             return;
         }
 
@@ -71,13 +76,13 @@ class NpmService
 
         $process->run();
 
-        if (file_exists($this->pidFile)) {
-            unlink($this->pidFile);
-        }
+        $this->cleanupStalePid();
     }
 
     public function status(): array
     {
+        $this->cleanupStalePid();
+
         $pid = $this->getPid();
         $running = $pid ? $this->isPidRunning($pid) : false;
 
@@ -125,11 +130,29 @@ class NpmService
 
         $process->run();
 
-        return trim($process->getOutput()) !== '';
+        $output = $process->getOutput();
+
+        return (bool) preg_match('/^\\s*\\d+\\s*$/m', $output);
     }
 
     private function isWindows(): bool
     {
         return str_starts_with(strtolower(PHP_OS_FAMILY), 'windows');
+    }
+
+    private function buildCommand(): string
+    {
+        return ltrim($this->command);
+    }
+
+    /**
+     * Remove stale PID files so UI reflects actual state.
+     */
+    private function cleanupStalePid(): void
+    {
+        $pid = $this->getPid();
+        if ($pid && !$this->isPidRunning($pid) && file_exists($this->pidFile)) {
+            unlink($this->pidFile);
+        }
     }
 }
