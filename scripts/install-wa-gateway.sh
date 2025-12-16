@@ -136,7 +136,7 @@ prepare_panel_env() {
 setup_panel() {
   cd "$REPO_DIR/panel"
   log "Composer install (panel)"
-  composer install --no-interaction --prefer-dist
+  composer install --prefer-dist
 
   log "Generate APP_KEY jika belum ada"
   php -r "file_exists('.env') && strpos(file_get_contents('.env'),'APP_KEY=')!==false ?: exit(0);" \
