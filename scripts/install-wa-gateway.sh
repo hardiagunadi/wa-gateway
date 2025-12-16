@@ -146,6 +146,9 @@ setup_panel() {
   mkdir -p database
   touch database/database.sqlite
 
+  log "Generate Key"
+  php artisan key:generate
+
   log "Migrasi database"
   php artisan migrate --force
 
