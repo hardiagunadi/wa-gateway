@@ -114,6 +114,7 @@ install_gateway_deps() {
   cd "$REPO_DIR"
   log "npm install (gateway)"
   npm install
+  npm audit fix
 }
 
 prepare_panel_env() {
