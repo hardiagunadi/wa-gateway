@@ -147,6 +147,9 @@ setup_panel() {
   log "Migrasi database"
   php artisan migrate --force
 
+  log "Linkan Storage"
+  php artisan storage:link
+
   log "npm install + build (panel)"
   npm install
   npm run build
