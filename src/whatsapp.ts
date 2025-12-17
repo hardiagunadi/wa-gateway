@@ -9,8 +9,8 @@ import {
 } from "./webhooks/media";
 import { getSessionWebhookConfig } from "./session-config";
 import { setMessageStatus } from "./status-store";
-import { getDeviceBySessionId } from "./wablas/registry";
-import { findAutoreplyByKeyword } from "./wablas/store";
+import { getDeviceBySessionId } from "./wa-gateway/registry";
+import { findAutoreplyByKeyword } from "./wa-gateway/store";
 
 const createWebhookClient = (apiKey?: string) =>
   axios.create({
@@ -113,7 +113,7 @@ async function onIncomingMessage(message: MessageReceived) {
     }
   }
 
-  // Wablas-compatible autoreply rules (token-scoped).
+  // wa-gateway-compatible autoreply rules (token-scoped).
   // Only apply when webhook auto-reply is disabled to avoid double replies.
   if (!config.autoReplyEnabled && incomingText && message.key.remoteJid) {
     const device = await getDeviceBySessionId(message.sessionId);

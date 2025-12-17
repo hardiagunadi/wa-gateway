@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 
-export type WablasContact = {
+export type WaGatewayContact = {
   phone: string;
   name?: string;
   email?: string;
@@ -12,7 +12,7 @@ export type WablasContact = {
   updatedAt: string;
 };
 
-export type WablasAutoreplyRule = {
+export type WaGatewayAutoreplyRule = {
   id: string;
   keyword: string;
   response: string;
@@ -20,7 +20,7 @@ export type WablasAutoreplyRule = {
   updatedAt: string;
 };
 
-export type WablasScheduleCategory =
+export type WaGatewayScheduleCategory =
   | "text"
   | "image"
   | "video"
@@ -32,13 +32,13 @@ export type WablasScheduleCategory =
   | "template"
   | "button";
 
-export type WablasScheduleRecord = {
+export type WaGatewayScheduleRecord = {
   id: string;
   token: string;
   sessionId: string;
   phone: string;
   isGroup?: boolean;
-  category: WablasScheduleCategory;
+  category: WaGatewayScheduleCategory;
   scheduledAt: string;
   scheduledAtMs: number;
   payload: Record<string, any>;
@@ -50,9 +50,9 @@ export type WablasScheduleRecord = {
 };
 
 const rootDir = path.resolve(process.cwd(), "wa_credentials");
-const contactsPath = path.join(rootDir, "wablas-contacts.json");
-const autoreplyPath = path.join(rootDir, "wablas-autoreply.json");
-const schedulesPath = path.join(rootDir, "wablas-schedules.json");
+const contactsPath = path.join(rootDir, "wa-gateway-contacts.json");
+const autoreplyPath = path.join(rootDir, "wa-gateway-autoreply.json");
+const schedulesPath = path.join(rootDir, "wa-gateway-schedules.json");
 
 async function ensureDir() {
   await fs.mkdir(rootDir, { recursive: true });
@@ -74,16 +74,24 @@ async function writeJson<T>(file: string, value: T) {
 
 const nowIso = () => new Date().toISOString();
 
-export const listContacts = async (token: string): Promise<WablasContact[]> => {
-  const all = await readJson<Record<string, WablasContact[]>>(contactsPath, {});
+export const listContacts = async (
+  token: string
+): Promise<WaGatewayContact[]> => {
+  const all = await readJson<Record<string, WaGatewayContact[]>>(
+    contactsPath,
+    {}
+  );
   return all[token] ?? [];
 };
 
 export const upsertContacts = async (
   token: string,
-  contacts: Array<Omit<WablasContact, "createdAt" | "updatedAt">>
+  contacts: Array<Omit<WaGatewayContact, "createdAt" | "updatedAt">>
 ) => {
-  const all = await readJson<Record<string, WablasContact[]>>(contactsPath, {});
+  const all = await readJson<Record<string, WaGatewayContact[]>>(
+    contactsPath,
+    {}
+  );
   const existing = all[token] ?? [];
   const byPhone = new Map(existing.map((c) => [c.phone, c]));
 
@@ -115,8 +123,8 @@ export const getContactByPhone = async (token: string, phone: string) => {
 
 export const listAutoreplyRules = async (
   token: string
-): Promise<WablasAutoreplyRule[]> => {
-  const all = await readJson<Record<string, WablasAutoreplyRule[]>>(
+): Promise<WaGatewayAutoreplyRule[]> => {
+  const all = await readJson<Record<string, WaGatewayAutoreplyRule[]>>(
     autoreplyPath,
     {}
   );
@@ -127,12 +135,12 @@ export const addAutoreplyRule = async (
   token: string,
   input: { keyword: string; response: string }
 ) => {
-  const all = await readJson<Record<string, WablasAutoreplyRule[]>>(
+  const all = await readJson<Record<string, WaGatewayAutoreplyRule[]>>(
     autoreplyPath,
     {}
   );
   const list = all[token] ?? [];
-  const rule: WablasAutoreplyRule = {
+  const rule: WaGatewayAutoreplyRule = {
     id: crypto.randomUUID(),
     keyword: input.keyword,
     response: input.response,
@@ -150,7 +158,7 @@ export const updateAutoreplyRule = async (
   id: string,
   input: Partial<{ keyword: string; response: string }>
 ) => {
-  const all = await readJson<Record<string, WablasAutoreplyRule[]>>(
+  const all = await readJson<Record<string, WaGatewayAutoreplyRule[]>>(
     autoreplyPath,
     {}
   );
@@ -169,7 +177,7 @@ export const updateAutoreplyRule = async (
 };
 
 export const deleteAutoreplyRule = async (token: string, id: string) => {
-  const all = await readJson<Record<string, WablasAutoreplyRule[]>>(
+  const all = await readJson<Record<string, WaGatewayAutoreplyRule[]>>(
     autoreplyPath,
     {}
   );
@@ -186,12 +194,12 @@ export const findAutoreplyByKeyword = async (token: string, keyword: string) => 
   return rules.filter((r) => r.keyword.trim().toLowerCase() === needle);
 };
 
-export const listSchedules = async (): Promise<WablasScheduleRecord[]> => {
-  const all = await readJson<WablasScheduleRecord[]>(schedulesPath, []);
+export const listSchedules = async (): Promise<WaGatewayScheduleRecord[]> => {
+  const all = await readJson<WaGatewayScheduleRecord[]>(schedulesPath, []);
   return Array.isArray(all) ? all : [];
 };
 
-export const addSchedules = async (records: WablasScheduleRecord[]) => {
+export const addSchedules = async (records: WaGatewayScheduleRecord[]) => {
   const all = await listSchedules();
   all.push(...records);
   await writeJson(schedulesPath, all);
@@ -201,7 +209,7 @@ export const addSchedules = async (records: WablasScheduleRecord[]) => {
 export const updateSchedule = async (
   token: string,
   id: string,
-  patch: Partial<Omit<WablasScheduleRecord, "id" | "token" | "createdAt">>
+  patch: Partial<Omit<WaGatewayScheduleRecord, "id" | "token" | "createdAt">>
 ) => {
   const all = await listSchedules();
   const idx = all.findIndex((s) => s.id === id && s.token === token);
@@ -228,4 +236,3 @@ export const cancelSchedules = async (token: string, ids: string[]) => {
   await writeJson(schedulesPath, next);
   return touched;
 };
-

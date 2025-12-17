@@ -1,4 +1,8 @@
-import { listSchedules, updateSchedule, WablasScheduleRecord } from "./store";
+import {
+  listSchedules,
+  updateSchedule,
+  type WaGatewayScheduleRecord,
+} from "./store";
 import {
   sendV2Audio,
   sendV2Document,
@@ -12,7 +16,18 @@ import {
 
 let started = false;
 
-async function trySendSchedule(record: WablasScheduleRecord) {
+async function processDueSchedules() {
+  const all = await listSchedules();
+  const now = Date.now();
+  const due = all
+    .filter((s) => s.status === "pending" && s.scheduledAtMs <= now)
+    .slice(0, 50);
+  for (const record of due) {
+    await trySendSchedule(record);
+  }
+}
+
+async function trySendSchedule(record: WaGatewayScheduleRecord) {
   try {
     let res: any = null;
     const to = record.phone;
@@ -106,24 +121,12 @@ async function trySendSchedule(record: WablasScheduleRecord) {
   }
 }
 
-async function processDueSchedules() {
-  const all = await listSchedules();
-  const now = Date.now();
-  const due = all
-    .filter((s) => s.status === "pending" && s.scheduledAtMs <= now)
-    .slice(0, 50);
-  for (const record of due) {
-    await trySendSchedule(record);
-  }
-}
-
-export const startWablasScheduler = (intervalMs = 1000) => {
+export const startWaGatewayScheduler = (intervalMs = 1000) => {
   if (started) return;
   started = true;
   setInterval(() => {
     processDueSchedules().catch((err) =>
-      console.error("Wablas scheduler error", err)
+      console.error("wa-gateway scheduler error", err)
     );
   }, intervalMs);
 };
-

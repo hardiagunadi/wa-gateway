@@ -13,10 +13,10 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { createHealthController } from "./controllers/health";
 import { createGroupController } from "./controllers/group";
 import {
-  createWablasCompatController,
-  createWablasCompatV2Controller,
-} from "./controllers/wablas";
-import { startWablasScheduler } from "./wablas/scheduler";
+  createWaGatewayCompatController,
+  createWaGatewayCompatV2Controller,
+} from "./controllers/wa-gateway";
+import { startWaGatewayScheduler } from "./wa-gateway/scheduler";
 
 const app = new Hono();
 
@@ -64,14 +64,14 @@ app.route("/", createHealthController());
 app.route("/", createGroupController());
 
 /**
- * Wablas-compatible API (v1 + v2)
+ * wa-gateway-compatible API (v1 + v2)
  */
-app.route("/", createWablasCompatController());
-app.route("/", createWablasCompatV2Controller());
+app.route("/", createWaGatewayCompatController());
+app.route("/", createWaGatewayCompatV2Controller());
 
 const port = env.PORT;
 
-startWablasScheduler();
+startWaGatewayScheduler();
 
 serve(
   {

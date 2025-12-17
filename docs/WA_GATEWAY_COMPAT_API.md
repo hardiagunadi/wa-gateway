@@ -1,6 +1,6 @@
-# Wablas-Compatible API (wa-gateway)
+# wa-gateway-Compatible API (wa-gateway)
 
-Dokumen ini menjelaskan **endpoint kompatibilitas Wablas** yang disediakan oleh `wa-gateway`, mengacu pada dokumentasi di `https://solo.wablas.com/documentation/api`.
+Dokumen ini menjelaskan **endpoint kompatibilitas wa-gateway** yang disediakan oleh `wa-gateway`.
 
 Catatan penting:
 - `wa-gateway` **tidak memerlukan** `{$secret_key}` pada header `Authorization`. Jika klien mengirim `Authorization: token.secret`, server hanya mengambil bagian `token`.
@@ -9,7 +9,7 @@ Catatan penting:
 
 ## Konsep Mapping
 
-- **Device token (Wablas)** → dipetakan ke **sessionId (wa-gateway)** lewat registry `wa_credentials/device-registry.json`.
+- **Device token (wa-gateway)** → dipetakan ke **sessionId (wa-gateway)** lewat registry `wa_credentials/device-registry.json`.
 - Semua aksi “device” dan “send-*” memilih session berdasarkan token.
 
 ## Authentication
@@ -133,7 +133,7 @@ Fields (form):
 
 ## V2 Endpoints
 
-`wa-gateway` menyediakan endpoint **V2** dengan format payload JSON sesuai dokumentasi Wablas.
+`wa-gateway` menyediakan endpoint **V2** dengan format payload JSON.
 
 Catatan:
 - `Authorization: {token}.{secret_key}` diterima, tetapi **secret_key diabaikan**. Anda cukup kirim `Authorization: {token}`.
@@ -169,7 +169,7 @@ Field yang dipakai:
 ```json
 {
   "data": [
-    { "phone": "62812xxx", "message": { "text": "Info", "link": "https://wablas.com" } }
+    { "phone": "62812xxx", "message": { "text": "Info", "link": "https://wa-gateway.example" } }
   ]
 }
 ```
@@ -208,13 +208,13 @@ Best-effort mapping ke WhatsApp list message (Baileys).
 ```
 
 ### Group endpoints `/api/v2/group/*`
-Wablas “group” berbeda dengan WhatsApp group. Di `wa-gateway` endpoint ini menganggap `group_id` adalah **WhatsApp group id/JID**.
+wa-gateway “group” berbeda dengan WhatsApp group. Di `wa-gateway` endpoint ini menganggap `group_id` adalah **WhatsApp group id/JID**.
 - `GET /api/v2/group/text?group_id=12345-67890@g.us&message=halo`
 - `POST /api/v2/group/text` body JSON `{ "data": [{ "group_id": "...", "message": "..." }] }`
 - `POST /api/v2/group/image|video|audio|document`
 
 ### Schedule `/api/v2/schedule`
-Menyimpan jadwal ke `wa_credentials/wablas-schedules.json` dan diproses oleh scheduler internal.
+Menyimpan jadwal ke `wa_credentials/wa-gateway-schedules.json` dan diproses oleh scheduler internal.
 
 ```json
 {
@@ -253,4 +253,4 @@ Menghapus file lokal di folder `./media` yang mengandung substring `{id}` di nam
 
 ## Catatan Keterbatasan
 
-Dokumentasi Wablas mencakup banyak fitur lanjutan (reporting, reminder, upload media Wablas, blacklist global, agent, dll). Pada versi ini, endpoint tersebut akan mengembalikan HTTP `501 Not Implemented` dengan pesan yang jelas.
+Dokumentasi wa-gateway mencakup banyak fitur lanjutan (reporting, reminder, upload media wa-gateway, blacklist global, agent, dll). Pada versi ini, endpoint tersebut akan mengembalikan HTTP `501 Not Implemented` dengan pesan yang jelas.

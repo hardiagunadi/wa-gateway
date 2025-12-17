@@ -1,6 +1,6 @@
 import { Context } from "hono";
 
-export const getWablasToken = (c: Context): string | null => {
+export const getWaGatewayToken = (c: Context): string | null => {
   const fromQuery = c.req.query("token");
   if (fromQuery) return fromQuery;
 
@@ -17,4 +17,3 @@ export const getWablasToken = (c: Context): string | null => {
   const tokenOnly = raw.split(".")[0]?.trim();
   return tokenOnly || null;
 };
-

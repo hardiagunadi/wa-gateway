@@ -55,11 +55,13 @@ Pastikan `KEY` di `docker-compose.yaml` sama dengan yang dipakai panel.
    - Docker mode: `docker compose logs -f`
 
 ## 6) Installer Otomatis (Server Baru)
-Script ini akan memasang dependensi (Docker + Compose, Node 20, PHP 8.4 + ekstensi, Composer), menyiapkan `.env` gateway/panel, menginstal dependensi Node/Composer, menjalankan migrasi, dan build panel. Jika suatu komponen sudah ada, akan dilewati.
+Script ini akan memasang dependensi (Docker + Compose, Node 20, PHP default 8.3 + ekstensi, Composer), menyiapkan `.env` gateway/panel, menginstal dependensi Node/Composer, menjalankan migrasi, dan build panel. Jika suatu komponen sudah ada, akan dilewati.
 
 ### Menjalankan
 ```bash
-sudo bash scripts/install-wa-gateway.sh
+# Jalankan sebagai user deploy (bukan root). Script akan meminta password sudo saat diperlukan.
+# Pastikan user deploy punya akses sudo (mis. masuk group sudo).
+bash scripts/install-wa-gateway.sh
 ```
 
 ### Sesudah Installer

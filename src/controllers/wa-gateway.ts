@@ -7,14 +7,14 @@ import path from "path";
 import { requestValidator } from "../middlewares/validation.middleware";
 import { createKeyMiddleware } from "../middlewares/key.middleware";
 import { whatsapp } from "../whatsapp";
-import { getWablasToken } from "../wablas/auth";
+import { getWaGatewayToken } from "../wa-gateway/auth";
 import {
   deleteDeviceBySessionId,
   deleteDeviceByToken,
   generateToken,
   getDeviceByToken,
   upsertDevice,
-} from "../wablas/registry";
+} from "../wa-gateway/registry";
 import { getSessionWebhookConfig } from "../session-config";
 import { addStoredSession, removeStoredSession } from "../session-store";
 import {
@@ -28,7 +28,7 @@ import {
   sendV2Text,
   sendV2Video,
   truthy,
-} from "../wablas/sender";
+} from "../wa-gateway/sender";
 import {
   addAutoreplyRule,
   addSchedules,
@@ -40,9 +40,9 @@ import {
   upsertContacts,
   updateAutoreplyRule,
   updateSchedule,
-  WablasScheduleCategory,
-  type WablasScheduleRecord,
-} from "../wablas/store";
+  WaGatewayScheduleCategory,
+  type WaGatewayScheduleRecord,
+} from "../wa-gateway/store";
 
 const requireToken = (token: string | null) => {
   if (!token) {
@@ -82,7 +82,7 @@ const parseScheduledAtMs = (value: string) => {
   return new Date(raw).getTime();
 };
 
-const createWablasDeviceRouter = () => {
+const createWaGatewayDeviceRouter = () => {
   const app = new Hono();
 
   app.post(
@@ -138,7 +138,7 @@ const createWablasDeviceRouter = () => {
   );
 
   app.post("/device/delete", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     await whatsapp.deleteSession(sessionId);
     await deleteDeviceByToken(token);
@@ -148,14 +148,14 @@ const createWablasDeviceRouter = () => {
   });
 
   app.post("/device/disconnect", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     await whatsapp.deleteSession(sessionId);
     return c.json({ status: true, message: "device disconnected" });
   });
 
   app.get("/device/info", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const session = await whatsapp.getSessionById(sessionId);
     const status = (session as any)?.status || "disconnected";
@@ -177,7 +177,7 @@ const createWablasDeviceRouter = () => {
   });
 
   app.get("/device/scan", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
 
     const existing = await whatsapp.getSessionById(sessionId);
@@ -210,9 +210,9 @@ const createWablasDeviceRouter = () => {
   return app;
 };
 
-const createWablasLegacyRouter = () => {
+const createWaGatewayLegacyRouter = () => {
   const app = new Hono().use(createKeyMiddleware());
-  app.route("/", createWablasDeviceRouter());
+  app.route("/", createWaGatewayDeviceRouter());
 
   /**
    * Messaging (legacy /api/*)
@@ -226,7 +226,7 @@ const createWablasLegacyRouter = () => {
   });
 
   app.all("/send-message", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
 
     const params =
@@ -265,7 +265,7 @@ const createWablasLegacyRouter = () => {
   });
 
   app.post("/send-image", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = (await c.req.parseBody()) as Record<string, any>;
     const parsed = sendMediaSchema.safeParse(body);
@@ -287,7 +287,7 @@ const createWablasLegacyRouter = () => {
   });
 
   app.post("/send-video", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = (await c.req.parseBody()) as Record<string, any>;
     const phone = body.phone;
@@ -309,7 +309,7 @@ const createWablasLegacyRouter = () => {
   });
 
   app.post("/send-document", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = (await c.req.parseBody()) as Record<string, any>;
     const phone = body.phone;
@@ -333,7 +333,7 @@ const createWablasLegacyRouter = () => {
   });
 
   app.post("/send-audio", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = (await c.req.parseBody()) as Record<string, any>;
     const phone = body.phone;
@@ -390,9 +390,9 @@ const createWablasLegacyRouter = () => {
   return app;
 };
 
-const createWablasV2Router = () => {
+const createWaGatewayV2Router = () => {
   const app = new Hono().use(createKeyMiddleware());
-  app.route("/", createWablasDeviceRouter());
+  app.route("/", createWaGatewayDeviceRouter());
 
   const bulkBase = z.object({
     data: z.array(z.any()).min(1),
@@ -410,7 +410,7 @@ const createWablasV2Router = () => {
     });
 
   app.post("/send-message", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -468,7 +468,7 @@ const createWablasV2Router = () => {
   });
 
   app.post("/send-image", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -516,7 +516,7 @@ const createWablasV2Router = () => {
   });
 
   app.post("/send-video", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -564,7 +564,7 @@ const createWablasV2Router = () => {
   });
 
   app.post("/send-document", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -622,7 +622,7 @@ const createWablasV2Router = () => {
   });
 
   app.post("/send-audio", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -670,7 +670,7 @@ const createWablasV2Router = () => {
   });
 
   app.post("/send-link", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -718,7 +718,7 @@ const createWablasV2Router = () => {
   });
 
   app.post("/send-list", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -773,7 +773,7 @@ const createWablasV2Router = () => {
   });
 
   app.post("/send-location", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -826,10 +826,10 @@ const createWablasV2Router = () => {
 
   /**
    * GROUP (best-effort mapping)
-   * Wablas "group" is not WhatsApp group; here `group_id` is treated as WA group id/JID.
+   * wa-gateway "group" is not WhatsApp group; here `group_id` is treated as WA group id/JID.
    */
   app.get("/group/text", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const groupId = c.req.query("group_id") || c.req.query("phone") || "";
     const message = c.req.query("message") || "";
@@ -850,7 +850,7 @@ const createWablasV2Router = () => {
   });
 
   app.post("/group/text", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -899,7 +899,7 @@ const createWablasV2Router = () => {
     c: any,
     kind: "image" | "video" | "audio" | "document"
   ) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -999,7 +999,7 @@ const createWablasV2Router = () => {
    * SCHEDULE
    */
   app.post("/schedule", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
 
     const body = await c.req.json().catch(() => null);
@@ -1017,7 +1017,7 @@ const createWablasV2Router = () => {
     });
 
     const results: any[] = [];
-    const records: WablasScheduleRecord[] = [];
+    const records: WaGatewayScheduleRecord[] = [];
 
     for (const raw of parsed.data.data) {
       const item = itemSchema.safeParse(raw);
@@ -1036,7 +1036,7 @@ const createWablasV2Router = () => {
         continue;
       }
 
-      const category = item.data.category as WablasScheduleCategory;
+      const category = item.data.category as WaGatewayScheduleCategory;
       const id = crypto.randomUUID();
       const nowIso = new Date().toISOString();
 
@@ -1091,7 +1091,7 @@ const createWablasV2Router = () => {
   });
 
   app.put("/schedule/:schedule_id", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const scheduleId = c.req.param("schedule_id");
     const body = await c.req.json().catch(() => null);
     const parsed = bulkBase.safeParse(body);
@@ -1126,7 +1126,7 @@ const createWablasV2Router = () => {
     const updated = await updateSchedule(token, scheduleId, {
       phone: item.data.phone,
       isGroup: truthy(item.data.isGroup),
-      category: item.data.category as WablasScheduleCategory,
+      category: item.data.category as WaGatewayScheduleCategory,
       scheduledAt: item.data.scheduled_at,
       scheduledAtMs,
       payload,
@@ -1153,7 +1153,7 @@ const createWablasV2Router = () => {
   });
 
   app.delete("/delete-schedule", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const idsRaw = c.req.query("id") || "";
     const ids = idsRaw
       .split(",")
@@ -1168,7 +1168,7 @@ const createWablasV2Router = () => {
    * AUTOREPLY
    */
   app.post("/autoreply", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const body = await c.req.json().catch(() => null);
     const parsed = z
@@ -1190,7 +1190,7 @@ const createWablasV2Router = () => {
   });
 
   app.put("/autoreply/:id", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
     const id = c.req.param("id");
     const body = await c.req.json().catch(() => null);
@@ -1213,7 +1213,7 @@ const createWablasV2Router = () => {
   });
 
   app.delete("/autoreply/:id", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const id = c.req.param("id");
     const ok = await deleteAutoreplyRule(token, id);
     if (!ok) throw new HTTPException(404, { message: "Not found" });
@@ -1221,7 +1221,7 @@ const createWablasV2Router = () => {
   });
 
   app.get("/autoreply/getData", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const keyword = c.req.query("keyword") || "";
     if (!keyword) throw new HTTPException(400, { message: "keyword required" });
     const rules = await findAutoreplyByKeyword(token, keyword);
@@ -1232,7 +1232,7 @@ const createWablasV2Router = () => {
    * CONTACT
    */
   app.post("/contact", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const body = await c.req.json().catch(() => null);
     const parsed = z
       .object({
@@ -1257,7 +1257,7 @@ const createWablasV2Router = () => {
   });
 
   app.post("/contact/update", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const body = await c.req.json().catch(() => null);
     const parsed = z
       .object({
@@ -1282,7 +1282,7 @@ const createWablasV2Router = () => {
   });
 
   app.get("/contact", async (c) => {
-    const token = requireToken(getWablasToken(c));
+    const token = requireToken(getWaGatewayToken(c));
     const phone = c.req.query("phone");
     if (!phone) {
       const contacts = await listContacts(token);
@@ -1296,7 +1296,7 @@ const createWablasV2Router = () => {
    * MEDIA DELETE (local /media)
    */
   app.delete("/media/delete/:id", async (c) => {
-    requireToken(getWablasToken(c));
+    requireToken(getWaGatewayToken(c));
     const id = c.req.param("id");
     const dir = path.resolve(process.cwd(), "media");
     const files = await fs.readdir(dir).catch(() => []);
@@ -1325,12 +1325,12 @@ const createWablasV2Router = () => {
   return app;
 };
 
-export const createWablasCompatController = () => {
-  const router = createWablasLegacyRouter();
+export const createWaGatewayCompatController = () => {
+  const router = createWaGatewayLegacyRouter();
   return new Hono().basePath("/api").route("/", router);
 };
 
-export const createWablasCompatV2Controller = () => {
-  const router = createWablasV2Router();
+export const createWaGatewayCompatV2Controller = () => {
+  const router = createWaGatewayV2Router();
   return new Hono().basePath("/api/v2").route("/", router);
 };
