@@ -403,6 +403,26 @@ class GatewayController extends Controller
         }
     }
 
+    public function listGroups(Request $request, string $session): JsonResponse
+    {
+        $q = $request->query('q');
+        $phone = $request->query('phone');
+
+        try {
+            $groups = $this->gateway()->listGroups($session, is_string($q) ? $q : null, is_string($phone) ? $phone : null);
+
+            return response()->json([
+                'ok' => true,
+                'data' => $groups,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function listSessions(): JsonResponse
     {
         try {

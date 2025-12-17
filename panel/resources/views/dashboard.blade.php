@@ -18,8 +18,17 @@
                     <p class="text-slate-500">API Base</p>
                     <p class="font-semibold">{{ $gatewayConfig['base'] }}</p>
                     @if($gatewayConfig['key'])
-                        @php $masked = str_repeat('•', max(strlen($gatewayConfig['key']) - 3, 3)); @endphp
-                        <p class="text-xs text-slate-500">API Key: {{ $masked }}</p>
+                        @php
+                            $plainKey = (string) $gatewayConfig['key'];
+                            $masked = str_repeat('•', max(strlen($plainKey) - 3, 3));
+                        @endphp
+                        <div class="mt-1 text-xs text-slate-500">
+                            <span>Master Key:</span>
+                            <span id="gateway-key-masked" class="font-mono">{{ $masked }}</span>
+                            <span id="gateway-key-plain" class="font-mono hidden">{{ $plainKey }}</span>
+                            <button type="button" id="btn-toggle-gateway-key" class="ml-2 underline hover:text-slate-900">Show</button>
+                            <button type="button" id="btn-copy-gateway-key" class="ml-2 underline hover:text-slate-900">Copy</button>
+                        </div>
                     @else
                         <p class="text-xs text-amber-600">API Key kosong (akses publik)</p>
                     @endif
@@ -251,6 +260,42 @@
 
     <script>
         (() => {
+            const sessionsBaseUrl = '{{ url('/sessions') }}';
+
+            // Master key toggle/copy
+            const keyMasked = document.getElementById('gateway-key-masked');
+            const keyPlain = document.getElementById('gateway-key-plain');
+            const btnToggleKey = document.getElementById('btn-toggle-gateway-key');
+            const btnCopyKey = document.getElementById('btn-copy-gateway-key');
+
+            const getPlainKey = () => keyPlain?.textContent?.trim() || '';
+            btnToggleKey?.addEventListener('click', () => {
+                if (!keyMasked || !keyPlain) return;
+                const isHidden = keyPlain.classList.contains('hidden');
+                keyPlain.classList.toggle('hidden', !isHidden);
+                keyMasked.classList.toggle('hidden', isHidden);
+                btnToggleKey.textContent = isHidden ? 'Hide' : 'Show';
+            });
+            btnCopyKey?.addEventListener('click', async () => {
+                const val = getPlainKey();
+                if (!val) return;
+                try {
+                    await navigator.clipboard.writeText(val);
+                    btnCopyKey.textContent = 'Copied';
+                    setTimeout(() => (btnCopyKey.textContent = 'Copy'), 1200);
+                } catch {
+                    // fallback
+                    const tmp = document.createElement('textarea');
+                    tmp.value = val;
+                    document.body.appendChild(tmp);
+                    tmp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(tmp);
+                    btnCopyKey.textContent = 'Copied';
+                    setTimeout(() => (btnCopyKey.textContent = 'Copy'), 1200);
+                }
+            });
+
             const apiStatusLabel = document.getElementById('api-status-label');
             const apiStatusDetail = document.getElementById('api-status-detail');
             const apiStatusUrl = '{{ route('api.status') }}';
@@ -450,6 +495,21 @@
                                 <button class=\"px-3 py-2 rounded-lg bg-slate-900 text-white text-sm\">Save</button>
                             </div>
                         </form>
+                        <div class="mt-4 border-t border-slate-100 pt-4">
+                            <div class="flex items-center justify-between">
+                                <h4 class="font-semibold text-slate-900">Group ID Finder</h4>
+                                <button type="button" class="btn-refresh-groups px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" data-session="${encodeURIComponent(session)}">Load</button>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1">Cari Group ID WhatsApp yang ada di perangkat ini (session harus Connected).</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+                                <input type="text" id="group-search-q" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Cari nama group / group id">
+                                <input type="text" id="group-search-phone" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Cari nomor anggota (628xxx / 08xxx)">
+                            </div>
+                            <div class="flex justify-end gap-2 mt-2">
+                                <button type="button" id="btn-search-groups" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800">Search</button>
+                            </div>
+                            <div id="groups-result" class="mt-3 text-sm text-slate-600">Belum ada data.</div>
+                        </div>
                     `;
 
                     // Prefill tracking/device-status URL from dataset when available
@@ -518,6 +578,77 @@
                             }
                         });
                     });
+
+                    // Group lookup (proxy via panel)
+                    const groupsResult = document.getElementById('groups-result');
+                    const loadGroups = async () => {
+                        const qEl = document.getElementById('group-search-q');
+                        const phoneEl = document.getElementById('group-search-phone');
+                        const q = (qEl?.value || '').trim();
+                        const phone = (phoneEl?.value || '').trim();
+                        if (groupsResult) {
+                            groupsResult.textContent = 'Loading...';
+                            groupsResult.className = 'mt-3 text-sm text-slate-500';
+                        }
+                        try {
+                            const url = new URL(`${sessionsBaseUrl}/${encodeURIComponent(session)}/groups`, window.location.origin);
+                            if (q) url.searchParams.set('q', q);
+                            if (phone) url.searchParams.set('phone', phone);
+                            const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+                            const data = await res.json().catch(() => ({}));
+                            if (!data.ok) throw new Error(data.message || 'Failed');
+                            const groups = Array.isArray(data.data) ? data.data : [];
+                            if (!groupsResult) return;
+                            if (groups.length === 0) {
+                                groupsResult.textContent = 'Tidak ada group ditemukan.';
+                                groupsResult.className = 'mt-3 text-sm text-amber-700';
+                                return;
+                            }
+                            groupsResult.className = 'mt-3 text-sm text-slate-600';
+                            groupsResult.innerHTML = `
+                                <div class="space-y-2">
+                                    ${groups.map((g) => {
+                                        const gid = (g.id || '').toString();
+                                        const subject = (g.subject || '').toString();
+                                        const size = (g.size ?? '').toString();
+                                        const safeGid = gid.replace(/\"/g,'&quot;');
+                                        return `
+                                            <div class="border border-slate-100 rounded-lg p-3 bg-white flex items-start justify-between gap-3">
+                                                <div class="min-w-0">
+                                                    <p class="font-semibold truncate">${subject || '-'}</p>
+                                                    <p class="text-xs text-slate-500 truncate font-mono">${gid}</p>
+                                                    <p class="text-xs text-slate-500">Members: ${size || '-'}</p>
+                                                </div>
+                                                <button type="button" class="btn-copy-groupid px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" data-group-id="${safeGid}">Copy ID</button>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            `;
+
+                            groupsResult.querySelectorAll('.btn-copy-groupid').forEach((btn) => {
+                                btn.addEventListener('click', async () => {
+                                    const gid = btn.getAttribute('data-group-id') || '';
+                                    if (!gid) return;
+                                    try {
+                                        await navigator.clipboard.writeText(gid);
+                                        btn.textContent = 'Copied';
+                                        setTimeout(() => (btn.textContent = 'Copy ID'), 1000);
+                                    } catch {
+                                        btn.textContent = 'Copy failed';
+                                        setTimeout(() => (btn.textContent = 'Copy ID'), 1200);
+                                    }
+                                });
+                            });
+                        } catch (err) {
+                            if (!groupsResult) return;
+                            groupsResult.textContent = 'Gagal memuat group. Pastikan device sudah Connected.';
+                            groupsResult.className = 'mt-3 text-sm text-rose-700';
+                        }
+                    };
+
+                    settingsContent.querySelector('.btn-refresh-groups')?.addEventListener('click', loadGroups);
+                    document.getElementById('btn-search-groups')?.addEventListener('click', loadGroups);
 
                     show(modalSettings);
                 });

@@ -11,6 +11,7 @@ import { createMessageController } from "./controllers/message";
 import { createProfileController } from "./controllers/profile";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createHealthController } from "./controllers/health";
+import { createGroupController } from "./controllers/group";
 import {
   createWablasCompatController,
   createWablasCompatV2Controller,
@@ -56,6 +57,11 @@ app.route("/", createProfileController());
  * health routes
  */
 app.route("/", createHealthController());
+
+/**
+ * group routes
+ */
+app.route("/", createGroupController());
 
 /**
  * Wablas-compatible API (v1 + v2)

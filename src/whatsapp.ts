@@ -43,9 +43,17 @@ async function buildIncomingPayload(message: MessageReceived) {
   const document = await handleWebhookDocumentMessage(message);
   const audio = await handleWebhookAudioMessage(message);
 
+  const fromJid = message.key.remoteJid ?? null;
+  const isGroup = Boolean(fromJid && fromJid.includes("@g.us"));
+  const senderJid = (message.key as any)?.participant ?? fromJid;
+
   return {
     session: message.sessionId,
-    from: message.key.remoteJid ?? null,
+    from: fromJid,
+    sender: senderJid,
+    participant: senderJid,
+    isGroup,
+    group: isGroup ? { id: fromJid } : null,
     message:
       message.message?.conversation ||
       message.message?.extendedTextMessage?.text ||
