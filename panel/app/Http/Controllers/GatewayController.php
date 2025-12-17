@@ -21,10 +21,12 @@ class GatewayController extends Controller
         $health = null;
         $apiError = null;
         $sessionConfigs = [];
+        $sessionStatuses = [];
 
         try {
             $sessions = $gateway->listSessions();
             $health = $gateway->health();
+            $sessionStatuses = $gateway->listSessionStatuses();
         } catch (Throwable $e) {
             $apiError = $e->getMessage();
         }
@@ -39,6 +41,7 @@ class GatewayController extends Controller
             'sessions' => $sessions,
             'health' => $health,
             'apiError' => $apiError,
+            'sessionStatuses' => $sessionStatuses,
             'qrData' => session('qr'),
             'qrSession' => session('qrSession'),
             'statusMessage' => session('status'),
@@ -50,6 +53,63 @@ class GatewayController extends Controller
                 'key' => config('gateway.api_key'),
             ],
         ]);
+    }
+
+    public function createDevice(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'device_id' => ['required', 'string'],
+            'webhook_url' => ['required', 'string'],
+            'api_key' => ['nullable', 'string'],
+            'incoming_enabled' => ['sometimes', 'boolean'],
+            'auto_reply_enabled' => ['sometimes', 'boolean'],
+            'tracking_enabled' => ['sometimes', 'boolean'],
+            'device_status_enabled' => ['sometimes', 'boolean'],
+        ]);
+
+        $sessionId = $data['device_id'];
+
+        $this->sessionConfigStore()->put($sessionId, [
+            'webhookBaseUrl' => $data['webhook_url'],
+            'apiKey' => $data['api_key'] ?? null,
+            'incomingEnabled' => $request->boolean('incoming_enabled'),
+            'autoReplyEnabled' => $request->boolean('auto_reply_enabled'),
+            'trackingEnabled' => $request->boolean('tracking_enabled'),
+            'deviceStatusEnabled' => $request->boolean('device_status_enabled'),
+        ]);
+
+        try {
+            $response = $this->gateway()->startSession($sessionId);
+            $qr = $response['qr'] ?? null;
+
+            return redirect()
+                ->route('dashboard')
+                ->with([
+                    'status' => $qr ? "Device {$sessionId} dibuat, scan QR di bawah." : "Device {$sessionId} berhasil tersambung.",
+                    'qr' => $qr,
+                    'qrSession' => $sessionId,
+                ]);
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('dashboard')
+                ->withErrors(['device' => $e->getMessage()]);
+        }
+    }
+
+    public function deleteDevice(string $device): RedirectResponse
+    {
+        try {
+            $this->gateway()->logoutSession($device);
+            $this->sessionConfigStore()->delete($device);
+
+            return redirect()
+                ->route('dashboard')
+                ->with('status', "Device {$device} dihapus.");
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('dashboard')
+                ->withErrors(['device' => $e->getMessage()]);
+        }
     }
 
     public function startSession(Request $request): RedirectResponse

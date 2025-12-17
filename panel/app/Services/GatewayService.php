@@ -32,6 +32,16 @@ class GatewayService
         return [];
     }
 
+    public function listSessionStatuses(): array
+    {
+        $response = $this->client()->get('/session/status');
+        $response->throw();
+
+        $data = $response->json('data');
+
+        return is_array($data) ? $data : [];
+    }
+
     public function startSession(string $session): array
     {
         $response = $this->client()->post('/session/start', [

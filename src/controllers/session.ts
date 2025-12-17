@@ -20,11 +20,84 @@ export const createSessionController = () => {
      *
      */
     .get("/", createKeyMiddleware(), async (c) => {
-      const sessions = await whatsapp.getSessionsIds();
+      let runningSessions: string[] = [];
+      let persistedSessions: string[] = [];
+
+      try {
+        runningSessions = await whatsapp.getSessionsIds();
+
+        // Reload persisted sessions if nothing is currently in memory (e.g. after restart)
+        if (runningSessions.length === 0) {
+          await whatsapp.load();
+          runningSessions = await whatsapp.getSessionsIds();
+        }
+
+        const adapter = (whatsapp as any).adapter;
+        if (adapter?.listSessions) {
+          persistedSessions = await adapter.listSessions();
+        }
+      } catch (error) {
+        console.error("Failed to list sessions", error);
+      }
+
+      const sessions = Array.from(
+        new Set<string>([...persistedSessions, ...runningSessions])
+      );
 
       return c.json({
         data: sessions,
       });
+    })
+
+    /**
+     *
+     * GET /session/status
+     *
+     * Return session statuses + basic device info.
+     */
+    .get("/status", createKeyMiddleware(), async (c) => {
+      let runningSessions: string[] = [];
+      let persistedSessions: string[] = [];
+
+      try {
+        runningSessions = await whatsapp.getSessionsIds();
+        if (runningSessions.length === 0) {
+          await whatsapp.load();
+          runningSessions = await whatsapp.getSessionsIds();
+        }
+
+        const adapter = (whatsapp as any).adapter;
+        if (adapter?.listSessions) {
+          persistedSessions = await adapter.listSessions();
+        }
+      } catch (error) {
+        console.error("Failed to list sessions", error);
+      }
+
+      const ids = Array.from(
+        new Set<string>([...persistedSessions, ...runningSessions])
+      );
+
+      const data = await Promise.all(
+        ids.map(async (id) => {
+          const session = await whatsapp.getSessionById(id);
+          const status = (session as any)?.status || "disconnected";
+          const userId = (session as any)?.sock?.user?.id || null;
+          const userName = (session as any)?.sock?.user?.name || null;
+          return {
+            id,
+            status,
+            user: userId
+              ? {
+                  id: userId,
+                  name: userName,
+                }
+              : null,
+          };
+        })
+      );
+
+      return c.json({ data });
     })
     /**
      *
