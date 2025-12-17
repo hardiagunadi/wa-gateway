@@ -138,6 +138,8 @@
                             $st = $row['status'] ?? 'disconnected';
                             $userId = $row['user']['id'] ?? null;
                             $cfg = $sessionConfigs[$session] ?? [];
+                            $deviceName = $cfg['deviceName'] ?? null;
+                            $deviceName = is_string($deviceName) && trim($deviceName) !== '' ? trim($deviceName) : null;
 
                             $badgeClass = match($st) {
                                 'connected' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -147,8 +149,12 @@
                         @endphp
                         <div class="device-card border border-slate-100 rounded-xl p-4 bg-white"
                              data-device="{{ $session }}"
+                             data-name="{{ $deviceName ?? '' }}"
                              data-phone="{{ $userId ?? '' }}"
+                             data-status="{{ $st }}"
                              data-webhook="{{ $cfg['webhookBaseUrl'] ?? '' }}"
+                             data-tracking-webhook="{{ $cfg['trackingWebhookBaseUrl'] ?? '' }}"
+                             data-device-status-webhook="{{ $cfg['deviceStatusWebhookBaseUrl'] ?? '' }}"
                              data-incoming="{{ ($cfg['incomingEnabled'] ?? true) ? '1' : '0' }}"
                              data-autoreply="{{ ($cfg['autoReplyEnabled'] ?? false) ? '1' : '0' }}"
                              data-tracking="{{ ($cfg['trackingEnabled'] ?? true) ? '1' : '0' }}"
@@ -157,7 +163,8 @@
                                 <div class="flex items-center gap-3">
                                     <div class="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">📱</div>
                                     <div>
-                                        <p class="font-semibold leading-tight">{{ $session }}</p>
+                                        <p class="font-semibold leading-tight">{{ $deviceName ?? $session }}</p>
+                                        <p class="text-xs text-slate-500">#{{ $session }}</p>
                                         <p class="device-phone text-xs text-slate-500">{{ $userId ?: 'Not linked' }}</p>
                                     </div>
                                 </div>
@@ -173,7 +180,7 @@
                             </div>
 
                             <div class="mt-4 flex items-center justify-between">
-                                <form method="POST" action="{{ route('sessions.start') }}" class="inline">
+                                <form method="POST" action="{{ route('sessions.start') }}" class="inline form-connect" data-session="{{ $session }}">
                                     @csrf
                                     <input type="hidden" name="session" value="{{ $session }}">
                                     <button class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800">Connect / QR</button>
@@ -215,34 +222,13 @@
             <form method="POST" action="{{ route('devices.create') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                 @csrf
                 <div class="col-span-1 md:col-span-2">
-                    <label class="block text-xs text-slate-500 mb-1">Device ID</label>
-                    <input name="device_id" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="mis. device-1" required>
+                    <label class="block text-xs text-slate-500 mb-1">Device Name</label>
+                    <input name="device_name" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="mis. TopSETTING" required>
                 </div>
                 <div class="col-span-1 md:col-span-2">
-                    <label class="block text-xs text-slate-500 mb-1">Webhook URL</label>
-                    <input name="webhook_url" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="https://watumalang.online/wablas/webhook" required>
+                    <label class="block text-xs text-slate-500 mb-1">Nomor WA Device</label>
+                    <input name="device_phone" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="62812xxxxxx" required>
                 </div>
-                <div class="col-span-1 md:col-span-2">
-                    <label class="block text-xs text-slate-500 mb-1">API Key (TL code)</label>
-                    <input name="api_key" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                </div>
-
-                <label class="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="incoming_enabled" value="1" class="rounded" checked>
-                    Get Incoming Message
-                </label>
-                <label class="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="auto_reply_enabled" value="1" class="rounded">
-                    Get Auto Reply From Webhook
-                </label>
-                <label class="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="tracking_enabled" value="1" class="rounded" checked>
-                    Get Tracking URL (status)
-                </label>
-                <label class="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="device_status_enabled" value="1" class="rounded" checked>
-                    Get Device Status
-                </label>
 
                 <div class="col-span-1 md:col-span-2 flex justify-end gap-2 pt-2">
                     <button type="button" id="btn-cancel-create" class="px-3 py-2 rounded-lg border border-slate-200 text-sm">Cancel</button>
@@ -295,6 +281,7 @@
                 const phone = card.querySelector('.device-phone');
 
                 const status = device.status || 'disconnected';
+                card.setAttribute('data-status', status);
                 const label = status.charAt(0).toUpperCase() + status.slice(1);
                 if (badge) {
                     badge.textContent = label;
@@ -354,6 +341,37 @@
             btnCloseSettings?.addEventListener('click', () => hide(modalSettings));
             modalSettings?.addEventListener('click', (e) => { if (e.target === modalSettings) hide(modalSettings); });
 
+            // Connect / QR behavior:
+            // - If connected/connecting -> confirm restart and submit to sessions.restart
+            // - If disconnected -> start session as usual
+            document.querySelectorAll('form.form-connect').forEach((form) => {
+                form.addEventListener('submit', (e) => {
+                    const session = form.getAttribute('data-session') || '';
+                    if (!session) return;
+                    const card = document.querySelector(`.device-card[data-device=\"${CSS.escape(session)}\"]`);
+                    const status = card?.getAttribute('data-status') || 'disconnected';
+                    const linkedPhone = (card?.getAttribute('data-phone') || '').trim();
+
+                    // If device is still connecting and not linked yet, prioritize Scan QR flow:
+                    // restart session to trigger QR refresh without asking for confirmation.
+                    if (status === 'connecting' && !linkedPhone) {
+                        form.setAttribute('action', '{{ route('sessions.restart') }}');
+                        return;
+                    }
+
+                    if (status !== 'disconnected') {
+                        const ok = confirm('Perangkat dalam kondisi Aktif, apakah ingin Restart Perangkat?');
+                        if (!ok) {
+                            e.preventDefault();
+                            return;
+                        }
+                        form.setAttribute('action', '{{ route('sessions.restart') }}');
+                    } else {
+                        form.setAttribute('action', '{{ route('sessions.start') }}');
+                    }
+                });
+            });
+
             document.querySelectorAll('.btn-open-settings').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const session = btn.getAttribute('data-session');
@@ -361,22 +379,36 @@
                     const card = document.querySelector(`.device-card[data-device=\"${CSS.escape(session)}\"]`);
                     if (!card) return;
 
+                    const name = card.getAttribute('data-name') || '';
                     const webhook = card.getAttribute('data-webhook') || '';
                     const incoming = card.getAttribute('data-incoming') === '1';
                     const autoreply = card.getAttribute('data-autoreply') === '1';
                     const tracking = card.getAttribute('data-tracking') === '1';
                     const deviceStatus = card.getAttribute('data-device-status') === '1';
+                    const csrf = '{{ csrf_token() }}';
 
                     settingsContent.innerHTML = `
                         <form method=\"POST\" action=\"${'{{ url('/sessions') }}'}/${encodeURIComponent(session)}/config\" class=\"grid grid-cols-1 md:grid-cols-2 gap-3\">
                             <input type=\"hidden\" name=\"_token\" value=\"{{ csrf_token() }}\" />
                             <div class=\"col-span-1 md:col-span-2\">
-                                <label class=\"block text-xs text-slate-500 mb-1\">Webhook URL</label>
-                                <input name=\"webhook_base_url\" type=\"text\" value=\"${webhook.replace(/\\\"/g,'&quot;')}\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" required>
+                                <label class=\"block text-xs text-slate-500 mb-1\">Device Name</label>
+                                <input name=\"device_name\" type=\"text\" value=\"${name.replace(/\\\"/g,'&quot;')}\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"Nama device\" />
+                            </div>
+                            <div class=\"col-span-1 md:col-span-2\">
+                                <label class=\"block text-xs text-slate-500 mb-1\">Webhook URL (Incoming & Auto Reply)</label>
+                                <div class=\"flex gap-2\">
+                                    <input id=\"webhook_base_url\" name=\"webhook_base_url\" type=\"text\" value=\"${webhook.replace(/\\\"/g,'&quot;')}\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" required>
+                                    <button type=\"button\" class=\"btn-test-webhook px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50\" data-type=\"base\" data-session=\"${encodeURIComponent(session)}\">Test</button>
+                                </div>
+                                <p class=\"text-xs text-slate-500 mt-1\">Endpoint test: <span class=\"font-mono\">/message</span></p>
+                                <p id=\"test-result-base\" class=\"text-xs mt-1\"></p>
                             </div>
                             <div class=\"col-span-1 md:col-span-2\">
                                 <label class=\"block text-xs text-slate-500 mb-1\">API Key</label>
-                                <input name=\"api_key\" type=\"text\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"isi jika ingin update\" />
+                                <div class=\"flex gap-2\">
+                                    <input id=\"api_key\" name=\"api_key\" type=\"text\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"isi jika ingin update\" />
+                                    <button type=\"button\" id=\"btn-generate-apikey\" class=\"px-3 py-2 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800\">Generate</button>
+                                </div>
                             </div>
                             <label class=\"flex items-center gap-2 text-sm\">
                                 <input type=\"checkbox\" name=\"incoming_enabled\" value=\"1\" class=\"rounded\" ${incoming ? 'checked' : ''}>
@@ -390,15 +422,100 @@
                                 <input type=\"checkbox\" name=\"tracking_enabled\" value=\"1\" class=\"rounded\" ${tracking ? 'checked' : ''}>
                                 Get Tracking URL (status)
                             </label>
+                            <div class=\"col-span-1 md:col-span-2\">
+                                <label class=\"block text-xs text-slate-500 mb-1\">Tracking Webhook URL (Status)</label>
+                                <div class=\"flex gap-2\">
+                                    <input id=\"tracking_webhook_base_url\" name=\"tracking_webhook_base_url\" type=\"text\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"kosong = pakai Webhook URL utama\" />
+                                    <button type=\"button\" class=\"btn-test-webhook px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50\" data-type=\"tracking\" data-session=\"${encodeURIComponent(session)}\">Test</button>
+                                </div>
+                                <p class=\"text-xs text-slate-500 mt-1\">Endpoint test: <span class=\"font-mono\">/status</span></p>
+                                <p id=\"test-result-tracking\" class=\"text-xs mt-1\"></p>
+                            </div>
                             <label class=\"flex items-center gap-2 text-sm\">
                                 <input type=\"checkbox\" name=\"device_status_enabled\" value=\"1\" class=\"rounded\" ${deviceStatus ? 'checked' : ''}>
                                 Get Device Status
                             </label>
+                            <div class=\"col-span-1 md:col-span-2\">
+                                <label class=\"block text-xs text-slate-500 mb-1\">Device Status Webhook URL</label>
+                                <div class=\"flex gap-2\">
+                                    <input id=\"device_status_webhook_base_url\" name=\"device_status_webhook_base_url\" type=\"text\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"kosong = pakai Webhook URL utama\" />
+                                    <button type=\"button\" class=\"btn-test-webhook px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50\" data-type=\"device_status\" data-session=\"${encodeURIComponent(session)}\">Test</button>
+                                </div>
+                                <p class=\"text-xs text-slate-500 mt-1\">Endpoint test: <span class=\"font-mono\">/session</span></p>
+                                <p id=\"test-result-device_status\" class=\"text-xs mt-1\"></p>
+                            </div>
                             <div class=\"col-span-1 md:col-span-2 flex justify-end pt-2\">
                                 <button class=\"px-3 py-2 rounded-lg bg-slate-900 text-white text-sm\">Save</button>
                             </div>
                         </form>
                     `;
+
+                    // Prefill tracking/device-status URL from dataset when available
+                    // (kept optional; if empty, gateway uses main webhook url).
+                    const trackingUrl = card.getAttribute('data-tracking-webhook') || '';
+                    const deviceStatusUrl = card.getAttribute('data-device-status-webhook') || '';
+                    const trackingInput = document.getElementById('tracking_webhook_base_url');
+                    const deviceStatusInput = document.getElementById('device_status_webhook_base_url');
+                    if (trackingInput) trackingInput.value = trackingUrl;
+                    if (deviceStatusInput) deviceStatusInput.value = deviceStatusUrl;
+
+                    const genBtn = document.getElementById('btn-generate-apikey');
+                    genBtn?.addEventListener('click', () => {
+                        const input = document.getElementById('api_key');
+                        if (!input) return;
+                        const bytes = new Uint8Array(16);
+                        if (window.crypto?.getRandomValues) {
+                            window.crypto.getRandomValues(bytes);
+                        } else {
+                            for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+                        }
+                        const hex = Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join('');
+                        input.value = hex;
+                    });
+
+                    // Test webhook buttons: call panel endpoint so it uses per-device API key.
+                    const testButtons = settingsContent.querySelectorAll('.btn-test-webhook');
+                    testButtons.forEach((b) => {
+                        b.addEventListener('click', async () => {
+                            const type = b.getAttribute('data-type') || 'base';
+                            const sessionEncoded = b.getAttribute('data-session') || encodeURIComponent(session);
+                            const apiKeyInput = document.getElementById('api_key');
+                            const apiKey = apiKeyInput?.value || '';
+                            const urlFieldId = type === 'tracking'
+                                ? 'tracking_webhook_base_url'
+                                : (type === 'device_status' ? 'device_status_webhook_base_url' : 'webhook_base_url');
+                            const urlInput = document.getElementById(urlFieldId);
+                            const url = (urlInput?.value || '').trim();
+                            const out = document.getElementById(`test-result-${type}`);
+                            if (out) {
+                                out.textContent = 'Testing...';
+                                out.className = 'text-xs mt-1 text-slate-500';
+                            }
+                            try {
+                                const res = await fetch(`${'{{ url('/sessions') }}'}/${sessionEncoded}/webhook-test`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
+                                        'X-CSRF-TOKEN': csrf,
+                                    },
+                                    body: JSON.stringify({ type, url, api_key: apiKey }),
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                const ok = !!data.ok;
+                                const msg = data.message || (ok ? 'OK' : 'FAILED');
+                                if (out) {
+                                    out.textContent = msg;
+                                    out.className = `text-xs mt-1 ${ok ? 'text-emerald-700' : 'text-rose-700'}`;
+                                }
+                            } catch (err) {
+                                if (out) {
+                                    out.textContent = 'FAILED: tidak bisa menguji URL';
+                                    out.className = 'text-xs mt-1 text-rose-700';
+                                }
+                            }
+                        });
+                    });
 
                     show(modalSettings);
                 });
