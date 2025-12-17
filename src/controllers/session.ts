@@ -5,6 +5,11 @@ import { createKeyMiddleware } from "../middlewares/key.middleware";
 import { toDataURL } from "qrcode";
 import { HTTPException } from "hono/http-exception";
 import { whatsapp } from "../whatsapp";
+import {
+  addStoredSession,
+  listStoredSessions,
+  removeStoredSession,
+} from "../session-store";
 
 export const createSessionController = () => {
   const startSessionSchema = z.object({
@@ -22,6 +27,7 @@ export const createSessionController = () => {
     .get("/", createKeyMiddleware(), async (c) => {
       let runningSessions: string[] = [];
       let persistedSessions: string[] = [];
+      let storedSessions: string[] = [];
 
       try {
         runningSessions = await whatsapp.getSessionsIds();
@@ -36,12 +42,14 @@ export const createSessionController = () => {
         if (adapter?.listSessions) {
           persistedSessions = await adapter.listSessions();
         }
+
+        storedSessions = await listStoredSessions();
       } catch (error) {
         console.error("Failed to list sessions", error);
       }
 
       const sessions = Array.from(
-        new Set<string>([...persistedSessions, ...runningSessions])
+        new Set<string>([...persistedSessions, ...runningSessions, ...storedSessions])
       );
 
       return c.json({
@@ -58,6 +66,7 @@ export const createSessionController = () => {
     .get("/status", createKeyMiddleware(), async (c) => {
       let runningSessions: string[] = [];
       let persistedSessions: string[] = [];
+      let storedSessions: string[] = [];
 
       try {
         runningSessions = await whatsapp.getSessionsIds();
@@ -70,12 +79,14 @@ export const createSessionController = () => {
         if (adapter?.listSessions) {
           persistedSessions = await adapter.listSessions();
         }
+
+        storedSessions = await listStoredSessions();
       } catch (error) {
         console.error("Failed to list sessions", error);
       }
 
       const ids = Array.from(
-        new Set<string>([...persistedSessions, ...runningSessions])
+        new Set<string>([...persistedSessions, ...runningSessions, ...storedSessions])
       );
 
       const data = await Promise.all(
@@ -110,6 +121,8 @@ export const createSessionController = () => {
       requestValidator("json", startSessionSchema),
       async (c) => {
         const payload = c.req.valid("json");
+
+        await addStoredSession(payload.session);
 
         const isExist = await whatsapp.getSessionById(payload.session);
         if (isExist) {
@@ -155,6 +168,8 @@ export const createSessionController = () => {
       async (c) => {
         const payload = c.req.valid("query");
 
+        await addStoredSession(payload.session);
+
         const isExist = await whatsapp.getSessionById(payload.session);
         if (isExist) {
           throw new HTTPException(400, {
@@ -199,12 +214,88 @@ export const createSessionController = () => {
      *
      */
     .all("/logout", createKeyMiddleware(), async (c) => {
-      await whatsapp.deleteSession(
-        c.req.query().session || (await c.req.json()).session || ""
-      );
+      const sessionId =
+        c.req.query().session || (await c.req.json()).session || "";
+      await addStoredSession(sessionId);
+      await whatsapp.deleteSession(sessionId);
       return c.json({
         data: "success",
       });
+    })
+
+    /**
+     *
+     * ALL /session/delete
+     *
+     * Logout session + remove persisted auth data (hard delete).
+     */
+    .all("/delete", createKeyMiddleware(), async (c) => {
+      const sessionId =
+        c.req.query().session || (await c.req.json()).session || "";
+      if (!sessionId) {
+        throw new HTTPException(400, { message: "session is required" });
+      }
+
+      await whatsapp.deleteSession(sessionId);
+
+      const adapter = (whatsapp as any).adapter;
+      if (adapter?.clearData) {
+        await adapter.clearData(sessionId);
+      }
+
+      await removeStoredSession(sessionId);
+
+      return c.json({ data: "success" });
+    })
+
+    /**
+     *
+     * ALL /session/restart
+     *
+     * Restart session connection without clearing stored creds.
+     * This will usually reconnect without requiring QR unless the device is logged out.
+     */
+    .all("/restart", createKeyMiddleware(), async (c) => {
+      const sessionId =
+        c.req.query().session || (await c.req.json()).session || "";
+      if (!sessionId) {
+        throw new HTTPException(400, { message: "session is required" });
+      }
+
+      await addStoredSession(sessionId);
+
+      const existing = await whatsapp.getSessionById(sessionId);
+      if (existing?.sock) {
+        try {
+          existing.sock.end(undefined);
+        } catch {
+          // ignore
+        }
+      }
+
+      // Remove from internal session map so startSession can run again.
+      const sessions = (whatsapp as any).sessions;
+      if (sessions?.delete) {
+        sessions.delete(sessionId);
+      }
+
+      const qr = await new Promise<string | null>(async (r) => {
+        await whatsapp.startSession(sessionId, {
+          onConnected() {
+            r(null);
+          },
+          onQRUpdated(qr) {
+            r(qr);
+          },
+          printQR: false,
+        });
+      });
+
+      if (qr) {
+        return c.json({ qr });
+      }
+
+      return c.json({ data: { message: "Connected" } });
     });
 
   return app;

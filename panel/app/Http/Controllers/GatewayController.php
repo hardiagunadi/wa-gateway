@@ -7,6 +7,7 @@ use App\Services\NpmService;
 use App\Services\SessionConfigStore;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use RuntimeException;
@@ -58,24 +59,39 @@ class GatewayController extends Controller
     public function createDevice(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'device_id' => ['required', 'string'],
-            'webhook_url' => ['required', 'string'],
-            'api_key' => ['nullable', 'string'],
-            'incoming_enabled' => ['sometimes', 'boolean'],
-            'auto_reply_enabled' => ['sometimes', 'boolean'],
-            'tracking_enabled' => ['sometimes', 'boolean'],
-            'device_status_enabled' => ['sometimes', 'boolean'],
+            'device_name' => ['required', 'string'],
+            'device_phone' => ['required', 'string'],
         ]);
 
-        $sessionId = $data['device_id'];
+        $sessionId = preg_replace('/\s+/', '', trim($data['device_phone'] ?? ''));
+        if (!$sessionId) {
+            return redirect()
+                ->route('dashboard')
+                ->withErrors(['device' => 'Nomor WA device tidak valid.']);
+        }
 
-        $this->sessionConfigStore()->put($sessionId, [
-            'webhookBaseUrl' => $data['webhook_url'],
-            'apiKey' => $data['api_key'] ?? null,
-            'incomingEnabled' => $request->boolean('incoming_enabled'),
-            'autoReplyEnabled' => $request->boolean('auto_reply_enabled'),
-            'trackingEnabled' => $request->boolean('tracking_enabled'),
-            'deviceStatusEnabled' => $request->boolean('device_status_enabled'),
+        $store = $this->sessionConfigStore();
+        $existingConfig = $store->get($sessionId);
+        $hasConfig = is_array($existingConfig) && count($existingConfig) > 0;
+
+        if ($hasConfig) {
+            return redirect()
+                ->route('dashboard')
+                ->withErrors(['device' => 'Perangkat sudah ditambahkan, coba dengan nomor yang berbeda.']);
+        }
+
+        // Jika device pernah dihapus dari panel tapi masih ada sisa session di gateway, bersihkan agar bisa dibuat ulang.
+        try {
+            $sessions = $this->gateway()->listSessions();
+            if (in_array($sessionId, $sessions, true)) {
+                $this->gateway()->deleteSession($sessionId);
+            }
+        } catch (Throwable) {
+            // ignore
+        }
+
+        $store->put($sessionId, [
+            'deviceName' => trim($data['device_name']),
         ]);
 
         try {
@@ -90,6 +106,12 @@ class GatewayController extends Controller
                     'qrSession' => $sessionId,
                 ]);
         } catch (Throwable $e) {
+            $msg = $e->getMessage();
+            if (str_contains($msg, 'Session already exist')) {
+                return redirect()
+                    ->route('dashboard')
+                    ->withErrors(['device' => 'Perangkat sudah ditambahkan, coba dengan nomor yang berbeda.']);
+            }
             return redirect()
                 ->route('dashboard')
                 ->withErrors(['device' => $e->getMessage()]);
@@ -99,7 +121,7 @@ class GatewayController extends Controller
     public function deleteDevice(string $device): RedirectResponse
     {
         try {
-            $this->gateway()->logoutSession($device);
+            $this->gateway()->deleteSession($device);
             $this->sessionConfigStore()->delete($device);
 
             return redirect()
@@ -166,10 +188,34 @@ class GatewayController extends Controller
         }
     }
 
+    public function restartSession(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'session' => ['required', 'string'],
+        ]);
+
+        try {
+            $response = $this->gateway()->restartSession($data['session']);
+            $qr = $response['qr'] ?? null;
+
+            return redirect()
+                ->route('dashboard')
+                ->with([
+                    'status' => $qr ? 'Perangkat direstart, scan QR di bawah jika diperlukan.' : 'Perangkat sedang mencoba menghubungkan kembali.',
+                    'qr' => $qr,
+                    'qrSession' => $data['session'],
+                ]);
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('dashboard')
+                ->withErrors(['session' => $e->getMessage()]);
+        }
+    }
+
     public function closeSession(string $session): RedirectResponse
     {
         try {
-            $this->gateway()->logoutSession($session);
+            $this->gateway()->deleteSession($session);
             $this->sessionConfigStore()->delete($session);
 
             return redirect()
@@ -185,7 +231,10 @@ class GatewayController extends Controller
     public function saveSessionConfig(Request $request, string $session): RedirectResponse
     {
         $data = $request->validate([
+            'device_name' => ['nullable', 'string'],
             'webhook_base_url' => ['required', 'string'],
+            'tracking_webhook_base_url' => ['nullable', 'string'],
+            'device_status_webhook_base_url' => ['nullable', 'string'],
             'api_key' => ['nullable', 'string'],
             'incoming_enabled' => ['sometimes', 'boolean'],
             'auto_reply_enabled' => ['sometimes', 'boolean'],
@@ -201,8 +250,21 @@ class GatewayController extends Controller
             $apiKey = $existing['apiKey'] ?? null;
         }
 
+        $deviceName = $data['device_name'] ?? null;
+        $deviceName = is_string($deviceName) ? trim($deviceName) : $deviceName;
+        if ($deviceName === '') {
+            $deviceName = $existing['deviceName'] ?? null;
+        }
+
         $config = [
+            'deviceName' => $deviceName,
             'webhookBaseUrl' => $data['webhook_base_url'],
+            'trackingWebhookBaseUrl' => isset($data['tracking_webhook_base_url']) && trim((string) $data['tracking_webhook_base_url']) !== ''
+                ? trim((string) $data['tracking_webhook_base_url'])
+                : ($existing['trackingWebhookBaseUrl'] ?? null),
+            'deviceStatusWebhookBaseUrl' => isset($data['device_status_webhook_base_url']) && trim((string) $data['device_status_webhook_base_url']) !== ''
+                ? trim((string) $data['device_status_webhook_base_url'])
+                : ($existing['deviceStatusWebhookBaseUrl'] ?? null),
             'apiKey' => $apiKey,
             'incomingEnabled' => $request->boolean('incoming_enabled'),
             'autoReplyEnabled' => $request->boolean('auto_reply_enabled'),
@@ -262,6 +324,81 @@ class GatewayController extends Controller
                 'status' => 'error',
                 'health' => null,
                 'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function webhookTest(Request $request, string $session): JsonResponse
+    {
+        $data = $request->validate([
+            'type' => ['required', 'string'],
+            'url' => ['required', 'string'],
+            'api_key' => ['nullable', 'string'],
+        ]);
+
+        $type = $data['type'];
+        $baseUrl = rtrim(trim($data['url']), '/');
+        if ($baseUrl === '') {
+            return response()->json(['ok' => false, 'message' => 'URL kosong.'], 400);
+        }
+
+        $store = $this->sessionConfigStore();
+        $existing = $store->get($session);
+        $apiKey = isset($data['api_key']) ? trim((string) $data['api_key']) : '';
+        if ($apiKey === '') {
+            $apiKey = isset($existing['apiKey']) ? (string) $existing['apiKey'] : '';
+        }
+
+        $endpoint = match ($type) {
+            'tracking' => '/status',
+            'device_status' => '/session',
+            default => '/message',
+        };
+
+        $payload = match ($type) {
+            'tracking' => [
+                'session' => $session,
+                'message_id' => 'test-message-id',
+                'message_status' => 'TEST',
+                'tracking_url' => '/message/status?session=' . urlencode($session) . '&id=test-message-id',
+            ],
+            'device_status' => [
+                'session' => $session,
+                'status' => 'connecting',
+            ],
+            default => [
+                'session' => $session,
+                'from' => 'test',
+                'message' => 'test webhook',
+                'media' => [
+                    'image' => null,
+                    'video' => null,
+                    'document' => null,
+                    'audio' => null,
+                ],
+            ],
+        };
+
+        try {
+            $client = Http::timeout(8)->acceptJson()->asJson();
+            if ($apiKey !== '') {
+                $client = $client->withHeaders(['key' => $apiKey]);
+            }
+
+            $resp = $client->post($baseUrl . $endpoint, $payload);
+            $ok = $resp->successful();
+
+            return response()->json([
+                'ok' => $ok,
+                'status' => $resp->status(),
+                'message' => $ok
+                    ? "OK ({$resp->status()})"
+                    : "FAILED ({$resp->status()}): " . substr((string) $resp->body(), 0, 200),
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'FAILED: ' . $e->getMessage(),
             ], 500);
         }
     }

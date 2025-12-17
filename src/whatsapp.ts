@@ -9,6 +9,8 @@ import {
 } from "./webhooks/media";
 import { getSessionWebhookConfig } from "./session-config";
 import { setMessageStatus } from "./status-store";
+import { getDeviceBySessionId } from "./wablas/registry";
+import { findAutoreplyByKeyword } from "./wablas/store";
 
 const createWebhookClient = (apiKey?: string) =>
   axios.create({
@@ -25,7 +27,9 @@ async function sendDeviceStatus(
   const config = await getSessionWebhookConfig(sessionId);
   if (config.deviceStatusEnabled === false) return;
 
-  const baseUrl = normalizeBaseUrl(config.webhookBaseUrl);
+  const baseUrl = normalizeBaseUrl(
+    config.deviceStatusWebhookBaseUrl || config.webhookBaseUrl
+  );
   if (!baseUrl) return;
 
   await createWebhookClient(config.apiKey)
@@ -67,21 +71,48 @@ async function onIncomingMessage(message: MessageReceived) {
 
   const config = await getSessionWebhookConfig(message.sessionId);
   const baseUrl = normalizeBaseUrl(config.webhookBaseUrl);
-  if (!baseUrl) return;
 
-  const client = createWebhookClient(config.apiKey);
   const payload = await buildIncomingPayload(message);
+  const incomingText = typeof payload.message === "string" ? payload.message : "";
 
-  if (config.incomingEnabled !== false) {
-    client.post(`${baseUrl}/message`, payload).catch(console.error);
+  if (baseUrl) {
+    const client = createWebhookClient(config.apiKey);
+    if (config.incomingEnabled !== false) {
+      client.post(`${baseUrl}/message`, payload).catch(console.error);
+    }
+
+    if (config.autoReplyEnabled) {
+      try {
+        const res = await client.post(`${baseUrl}/auto-reply`, payload);
+        const reply =
+          res?.data?.reply ?? res?.data?.message ?? res?.data?.text ?? null;
+        if (
+          typeof reply === "string" &&
+          reply.trim() &&
+          message.key.remoteJid
+        ) {
+          await whatsapp.sendText({
+            sessionId: message.sessionId,
+            to: message.key.remoteJid,
+            text: reply.trim(),
+            isGroup: message.key.remoteJid.includes("@g.us"),
+            answering: message,
+          });
+        }
+      } catch (err) {
+        console.error("Auto-reply webhook failed", err);
+      }
+    }
   }
 
-  if (config.autoReplyEnabled) {
-    try {
-      const res = await client.post(`${baseUrl}/auto-reply`, payload);
-      const reply =
-        res?.data?.reply ?? res?.data?.message ?? res?.data?.text ?? null;
-      if (typeof reply === "string" && reply.trim() && message.key.remoteJid) {
+  // Wablas-compatible autoreply rules (token-scoped).
+  // Only apply when webhook auto-reply is disabled to avoid double replies.
+  if (!config.autoReplyEnabled && incomingText && message.key.remoteJid) {
+    const device = await getDeviceBySessionId(message.sessionId);
+    if (device) {
+      const matches = await findAutoreplyByKeyword(device.token, incomingText);
+      const reply = matches[0]?.response;
+      if (typeof reply === "string" && reply.trim()) {
         await whatsapp.sendText({
           sessionId: message.sessionId,
           to: message.key.remoteJid,
@@ -90,8 +121,6 @@ async function onIncomingMessage(message: MessageReceived) {
           answering: message,
         });
       }
-    } catch (err) {
-      console.error("Auto-reply webhook failed", err);
     }
   }
 }
@@ -112,7 +141,9 @@ async function onMessageUpdated(update: MessageUpdated) {
   const config = await getSessionWebhookConfig(update.sessionId);
   if (config.trackingEnabled === false) return;
 
-  const baseUrl = normalizeBaseUrl(config.webhookBaseUrl);
+  const baseUrl = normalizeBaseUrl(
+    config.trackingWebhookBaseUrl || config.webhookBaseUrl
+  );
   if (!baseUrl) return;
 
   createWebhookClient(config.apiKey)

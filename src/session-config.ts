@@ -3,6 +3,8 @@ import path from "path";
 
 export type SessionWebhookConfig = {
   webhookBaseUrl?: string;
+  trackingWebhookBaseUrl?: string;
+  deviceStatusWebhookBaseUrl?: string;
   apiKey?: string;
   incomingEnabled?: boolean;
   autoReplyEnabled?: boolean;
@@ -36,6 +38,8 @@ export const getSessionWebhookConfig = async (
 
   return {
     webhookBaseUrl: cfg.webhookBaseUrl,
+    trackingWebhookBaseUrl: cfg.trackingWebhookBaseUrl,
+    deviceStatusWebhookBaseUrl: cfg.deviceStatusWebhookBaseUrl,
     apiKey: cfg.apiKey,
     incomingEnabled: cfg.incomingEnabled ?? true,
     autoReplyEnabled: cfg.autoReplyEnabled ?? false,
@@ -43,4 +47,3 @@ export const getSessionWebhookConfig = async (
     deviceStatusEnabled: cfg.deviceStatusEnabled ?? true,
   };
 };
-

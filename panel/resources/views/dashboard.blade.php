@@ -155,6 +155,7 @@
                              data-webhook="{{ $cfg['webhookBaseUrl'] ?? '' }}"
                              data-tracking-webhook="{{ $cfg['trackingWebhookBaseUrl'] ?? '' }}"
                              data-device-status-webhook="{{ $cfg['deviceStatusWebhookBaseUrl'] ?? '' }}"
+                             data-api-key="{{ $cfg['apiKey'] ?? '' }}"
                              data-incoming="{{ ($cfg['incomingEnabled'] ?? true) ? '1' : '0' }}"
                              data-autoreply="{{ ($cfg['autoReplyEnabled'] ?? false) ? '1' : '0' }}"
                              data-tracking="{{ ($cfg['trackingEnabled'] ?? true) ? '1' : '0' }}"
@@ -381,6 +382,7 @@
 
                     const name = card.getAttribute('data-name') || '';
                     const webhook = card.getAttribute('data-webhook') || '';
+                    const apiKeyStored = card.getAttribute('data-api-key') || '';
                     const incoming = card.getAttribute('data-incoming') === '1';
                     const autoreply = card.getAttribute('data-autoreply') === '1';
                     const tracking = card.getAttribute('data-tracking') === '1';
@@ -406,7 +408,7 @@
                             <div class=\"col-span-1 md:col-span-2\">
                                 <label class=\"block text-xs text-slate-500 mb-1\">API Key</label>
                                 <div class=\"flex gap-2\">
-                                    <input id=\"api_key\" name=\"api_key\" type=\"text\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"isi jika ingin update\" />
+                                    <input id=\"api_key\" name=\"api_key\" type=\"text\" value=\"${apiKeyStored.replace(/\\\"/g,'&quot;')}\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"API key\" />
                                     <button type=\"button\" id=\"btn-generate-apikey\" class=\"px-3 py-2 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800\">Generate</button>
                                 </div>
                             </div>

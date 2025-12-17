@@ -11,6 +11,11 @@ import { createMessageController } from "./controllers/message";
 import { createProfileController } from "./controllers/profile";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createHealthController } from "./controllers/health";
+import {
+  createWablasCompatController,
+  createWablasCompatV2Controller,
+} from "./controllers/wablas";
+import { startWablasScheduler } from "./wablas/scheduler";
 
 const app = new Hono();
 
@@ -52,7 +57,15 @@ app.route("/", createProfileController());
  */
 app.route("/", createHealthController());
 
+/**
+ * Wablas-compatible API (v1 + v2)
+ */
+app.route("/", createWablasCompatController());
+app.route("/", createWablasCompatV2Controller());
+
 const port = env.PORT;
+
+startWablasScheduler();
 
 serve(
   {

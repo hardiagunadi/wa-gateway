@@ -60,6 +60,24 @@ class GatewayService
         $response->throw();
     }
 
+    public function deleteSession(string $session): void
+    {
+        $response = $this->client()->post('/session/delete', [
+            'session' => $session,
+        ]);
+        $response->throw();
+    }
+
+    public function restartSession(string $session): array
+    {
+        $response = $this->client()->post('/session/restart', [
+            'session' => $session,
+        ]);
+        $response->throw();
+
+        return $response->json() ?? [];
+    }
+
     public function health(): ?array
     {
         try {
