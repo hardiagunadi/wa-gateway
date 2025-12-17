@@ -148,7 +148,7 @@
                 @if(!empty($sessions))
                     <div class="mt-6 border-t border-slate-100 pt-4">
                         <h3 class="text-lg font-semibold mb-2">Webhook Configuration (1 device = 1 webhook)</h3>
-                        <p class="text-xs text-slate-500 mb-4">Gunakan 1 URL webhook per session (endpoint tunggal). Gateway akan POST ke URL yang sama untuk event: incoming, auto-reply, status, device.</p>
+                        <p class="text-xs text-slate-500 mb-4">Atur Webhook & API Key untuk masing-masing session aktif.</p>
 
                         <div class="space-y-4">
                             @foreach($sessions as $session)
@@ -164,13 +164,12 @@
                                     <form id="cfg-{{ $session }}" method="POST" action="{{ route('sessions.config', $session) }}" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         @csrf
                                         <div class="col-span-1 md:col-span-2">
-                                            <label class="block text-xs text-slate-500 mb-1">Webhook URL</label>
-                                            <input type="text" name="webhook_base_url" value="{{ old('webhook_base_url', $cfg['webhookBaseUrl'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="https://watumalang.online/wablas/webhook" required>
+                                            <label class="block text-xs text-slate-500 mb-1">Webhook Base URL</label>
+                                            <input type="text" name="webhook_base_url" value="{{ old('webhook_base_url', $cfg['webhookBaseUrl'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
                                         </div>
                                         <div class="col-span-1 md:col-span-2">
-                                            <label class="block text-xs text-slate-500 mb-1">API Key</label>
+                                            <label class="block text-xs text-slate-500 mb-1">API Key (header `key` untuk webhook ini)</label>
                                             <input type="text" name="api_key" value="{{ old('api_key', $cfg['apiKey'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                                            <p class="text-xs text-slate-500 mt-1">Gateway akan mengirim API key sebagai header <span class="font-mono">key</span> dan field <span class="font-mono">tl_code</span> di body.</p>
                                         </div>
 
                                         <label class="flex items-center gap-2 text-sm">
@@ -191,6 +190,12 @@
                                         </label>
 
                                         <div class="col-span-1 md:col-span-2">
+                                            <div class="text-xs text-slate-500 mt-1">
+                                                <p>Incoming: <span class="font-mono">{{ ($cfg['webhookBaseUrl'] ?? '') ? rtrim($cfg['webhookBaseUrl'], '/') . '/message' : '-' }}</span></p>
+                                                <p>Auto Reply: <span class="font-mono">{{ ($cfg['webhookBaseUrl'] ?? '') ? rtrim($cfg['webhookBaseUrl'], '/') . '/auto-reply' : '-' }}</span></p>
+                                                <p>Status: <span class="font-mono">{{ ($cfg['webhookBaseUrl'] ?? '') ? rtrim($cfg['webhookBaseUrl'], '/') . '/status' : '-' }}</span></p>
+                                                <p>Device: <span class="font-mono">{{ ($cfg['webhookBaseUrl'] ?? '') ? rtrim($cfg['webhookBaseUrl'], '/') . '/session' : '-' }}</span></p>
+                                            </div>
                                             <button class="mt-3 px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-sm">Simpan</button>
                                         </div>
                                     </form>

@@ -15,15 +15,8 @@ const createWebhookClient = (apiKey?: string) =>
     headers: apiKey ? { key: apiKey } : {},
   });
 
-const normalizeWebhookUrl = (url?: string) => (url || "").trim().replace(/\/$/, "");
-
-const buildTrackingUrl = (sessionId: string, id: string) => {
-  const base = (process.env.PUBLIC_BASE_URL || "").trim().replace(/\/$/, "");
-  const relative = `/message/status?session=${encodeURIComponent(
-    sessionId
-  )}&id=${encodeURIComponent(id)}`;
-  return base ? `${base}${relative}` : relative;
-};
+const normalizeBaseUrl = (baseUrl?: string) =>
+  (baseUrl || "").trim().replace(/\/$/, "");
 
 async function sendDeviceStatus(
   sessionId: string,
@@ -32,16 +25,11 @@ async function sendDeviceStatus(
   const config = await getSessionWebhookConfig(sessionId);
   if (config.deviceStatusEnabled === false) return;
 
-  const webhookUrl = normalizeWebhookUrl(config.webhookBaseUrl);
-  if (!webhookUrl) return;
+  const baseUrl = normalizeBaseUrl(config.webhookBaseUrl);
+  if (!baseUrl) return;
 
   await createWebhookClient(config.apiKey)
-    .post(webhookUrl, {
-      event: "device_status",
-      session: sessionId,
-      status,
-      tl_code: config.apiKey || undefined,
-    })
+    .post(`${baseUrl}/session`, { session: sessionId, status })
     .catch(console.error);
 }
 
@@ -78,29 +66,19 @@ async function onIncomingMessage(message: MessageReceived) {
     return;
 
   const config = await getSessionWebhookConfig(message.sessionId);
-  const webhookUrl = normalizeWebhookUrl(config.webhookBaseUrl);
-  if (!webhookUrl) return;
+  const baseUrl = normalizeBaseUrl(config.webhookBaseUrl);
+  if (!baseUrl) return;
 
   const client = createWebhookClient(config.apiKey);
   const payload = await buildIncomingPayload(message);
 
   if (config.incomingEnabled !== false) {
-    client
-      .post(webhookUrl, {
-        event: "incoming_message",
-        ...payload,
-        tl_code: config.apiKey || undefined,
-      })
-      .catch(console.error);
+    client.post(`${baseUrl}/message`, payload).catch(console.error);
   }
 
   if (config.autoReplyEnabled) {
     try {
-      const res = await client.post(webhookUrl, {
-        event: "auto_reply",
-        ...payload,
-        tl_code: config.apiKey || undefined,
-      });
+      const res = await client.post(`${baseUrl}/auto-reply`, payload);
       const reply =
         res?.data?.reply ?? res?.data?.message ?? res?.data?.text ?? null;
       if (typeof reply === "string" && reply.trim() && message.key.remoteJid) {
@@ -134,17 +112,19 @@ async function onMessageUpdated(update: MessageUpdated) {
   const config = await getSessionWebhookConfig(update.sessionId);
   if (config.trackingEnabled === false) return;
 
-  const webhookUrl = normalizeWebhookUrl(config.webhookBaseUrl);
-  if (!webhookUrl) return;
+  const baseUrl = normalizeBaseUrl(config.webhookBaseUrl);
+  if (!baseUrl) return;
 
   createWebhookClient(config.apiKey)
-    .post(webhookUrl, {
-      event: "message_status",
+    .post(`${baseUrl}/status`, {
       session: update.sessionId,
       message_id: id ?? null,
       message_status: update.messageStatus,
-      tracking_url: id ? buildTrackingUrl(update.sessionId, id) : null,
-      tl_code: config.apiKey || undefined,
+      tracking_url: id
+        ? `/message/status?session=${encodeURIComponent(
+            update.sessionId
+          )}&id=${encodeURIComponent(id)}`
+        : null,
       key: update.key,
       update,
     })
