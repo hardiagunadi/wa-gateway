@@ -4,6 +4,7 @@ import { requestValidator } from "../middlewares/validation.middleware";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
 import { whatsapp } from "../whatsapp";
+import { getMessageStatus } from "../status-store";
 
 export const createMessageController = () => {
   const sendMessageSchema = z.object({
@@ -15,6 +16,33 @@ export const createMessageController = () => {
 
   const app = new Hono()
     .basePath("/message")
+    /**
+     *
+     * GET /message/status
+     *
+     * Return last known message status for tracking.
+     */
+    .get(
+      "/status",
+      createKeyMiddleware(),
+      requestValidator(
+        "query",
+        z.object({
+          session: z.string(),
+          id: z.string(),
+        })
+      ),
+      async (c) => {
+        const payload = c.req.valid("query");
+        const record = getMessageStatus(payload.session, payload.id);
+        if (!record) {
+          throw new HTTPException(404, {
+            message: "Status not found",
+          });
+        }
+        return c.json({ data: record });
+      }
+    )
     /**
      *
      * POST /message/send-text

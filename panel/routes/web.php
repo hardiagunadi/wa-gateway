@@ -14,9 +14,11 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middl
 
 Route::middleware('auth')->group(function () {
     Route::get('/', [GatewayController::class, 'index'])->name('dashboard');
+    Route::get('/api/status', [GatewayController::class, 'apiStatus'])->name('api.status');
+    Route::get('/sessions', [GatewayController::class, 'listSessions'])->name('sessions.list');
     Route::post('/sessions/start', [GatewayController::class, 'startSession'])->name('sessions.start');
     Route::post('/sessions/{session}/close', [GatewayController::class, 'closeSession'])->name('sessions.close');
-    Route::post('/webhook', [GatewayController::class, 'updateWebhook'])->name('webhook.update');
+    Route::post('/sessions/{session}/config', [GatewayController::class, 'saveSessionConfig'])->name('sessions.config');
     Route::post('/server/start', [GatewayController::class, 'startServer'])->name('server.start');
     Route::post('/server/stop', [GatewayController::class, 'stopServer'])->name('server.stop');
 

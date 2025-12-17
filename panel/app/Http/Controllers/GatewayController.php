@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Services\GatewayService;
-use App\Services\NodeEnvManager;
 use App\Services\NpmService;
+use App\Services\SessionConfigStore;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use RuntimeException;
 use Throwable;
 
 class GatewayController extends Controller
@@ -18,6 +20,7 @@ class GatewayController extends Controller
         $sessions = [];
         $health = null;
         $apiError = null;
+        $sessionConfigs = [];
 
         try {
             $sessions = $gateway->listSessions();
@@ -26,10 +29,11 @@ class GatewayController extends Controller
             $apiError = $e->getMessage();
         }
 
-        $envManager = new NodeEnvManager(config('gateway.node_env_path'));
-        $nodeEnv = $envManager->read();
-
         $npm = $this->npm();
+        $store = $this->sessionConfigStore();
+        foreach ($sessions as $session) {
+            $sessionConfigs[$session] = $store->get($session);
+        }
 
         return view('dashboard', [
             'sessions' => $sessions,
@@ -39,8 +43,8 @@ class GatewayController extends Controller
             'qrSession' => session('qrSession'),
             'statusMessage' => session('status'),
             'errorsBag' => $request->session()->get('errors'),
-            'nodeEnv' => $nodeEnv,
             'npmStatus' => $npm->status(),
+            'sessionConfigs' => $sessionConfigs,
             'gatewayConfig' => [
                 'base' => config('gateway.base_url'),
                 'key' => config('gateway.api_key'),
@@ -76,6 +80,7 @@ class GatewayController extends Controller
     {
         try {
             $this->gateway()->logoutSession($session);
+            $this->sessionConfigStore()->delete($session);
 
             return redirect()
                 ->route('dashboard')
@@ -87,25 +92,31 @@ class GatewayController extends Controller
         }
     }
 
-    public function updateWebhook(Request $request): RedirectResponse
+    public function saveSessionConfig(Request $request, string $session): RedirectResponse
     {
         $data = $request->validate([
-            'webhook_base_url' => ['nullable', 'string'],
-            'gateway_key' => ['nullable', 'string'],
+            'webhook_base_url' => ['required', 'string'],
+            'api_key' => ['nullable', 'string'],
+            'incoming_enabled' => ['sometimes', 'boolean'],
+            'auto_reply_enabled' => ['sometimes', 'boolean'],
+            'tracking_enabled' => ['sometimes', 'boolean'],
+            'device_status_enabled' => ['sometimes', 'boolean'],
         ]);
 
-        $envManager = new NodeEnvManager(config('gateway.node_env_path'));
-        $updated = $envManager->update([
-            'WEBHOOK_BASE_URL' => $data['webhook_base_url'] ?? '',
-            'KEY' => $data['gateway_key'] ?? '',
-        ]);
+        $config = [
+            'webhookBaseUrl' => $data['webhook_base_url'],
+            'apiKey' => $data['api_key'] ?? null,
+            'incomingEnabled' => $request->boolean('incoming_enabled'),
+            'autoReplyEnabled' => $request->boolean('auto_reply_enabled'),
+            'trackingEnabled' => $request->boolean('tracking_enabled'),
+            'deviceStatusEnabled' => $request->boolean('device_status_enabled'),
+        ];
+
+        $this->sessionConfigStore()->put($session, $config);
 
         return redirect()
             ->route('dashboard')
-            ->with('status', 'Webhook dan API key disimpan pada .env server Node. Restart server agar perubahan aktif.')
-            ->with('qr', session('qr'))
-            ->with('qrSession', session('qrSession'))
-            ->with('envSnapshot', $updated);
+            ->with('status', "Konfigurasi webhook untuk {$session} disimpan.");
     }
 
     public function startServer(): RedirectResponse
@@ -138,6 +149,36 @@ class GatewayController extends Controller
         }
     }
 
+    public function apiStatus(): JsonResponse
+    {
+        try {
+            $health = $this->gateway()->health();
+
+            return response()->json([
+                'status' => $health ? 'online' : 'unknown',
+                'health' => $health,
+                'message' => $health ? null : 'Tidak ada respons dari /health.',
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'status' => 'error',
+                'health' => null,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function listSessions(): JsonResponse
+    {
+        try {
+            $sessions = $this->gateway()->listSessions();
+
+            return response()->json(['sessions' => $sessions]);
+        } catch (Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     private function gateway(): GatewayService
     {
         return new GatewayService(
@@ -148,9 +189,65 @@ class GatewayController extends Controller
 
     private function npm(): NpmService
     {
-        return new NpmService(
-            config('gateway.npm.command'),
-            config('gateway.npm.workdir')
-        );
+        [$command, $workingDir] = $this->resolveNodeServerCommand();
+
+        return new NpmService($command, $workingDir);
+    }
+
+    private function sessionConfigStore(): SessionConfigStore
+    {
+        return new SessionConfigStore(config('gateway.session_config_path'));
+    }
+
+    /**
+     * Build command for the Node server and resolve the working directory even
+     * when the absolute path differs between environments.
+     */
+    private function resolveNodeServerCommand(): array
+    {
+        $workdirCandidates = array_filter([
+            config('gateway.npm.workdir'),
+            dirname(base_path()),
+            base_path(),
+        ]);
+
+        foreach ($workdirCandidates as $candidate) {
+            $resolvedDir = $this->absolutePath($candidate);
+            $loader = $resolvedDir . DIRECTORY_SEPARATOR . 'node_modules/tsx/dist/loader.mjs';
+            $entry = $resolvedDir . DIRECTORY_SEPARATOR . 'src/index.ts';
+
+            if (is_file($loader) && is_file($entry)) {
+                $defaultCommand = 'node --import ' . escapeshellarg($loader) . ' ' . escapeshellarg($entry);
+                $envCommand = $this->sanitizedEnvCommand();
+
+                return [$envCommand ?: $defaultCommand, $resolvedDir];
+            }
+        }
+
+        throw new RuntimeException('Tidak dapat menemukan direktori server Node. Pastikan src/index.ts dan node_modules/tsx/dist/loader.mjs tersedia.');
+    }
+
+    private function absolutePath(string $path): string
+    {
+        $absolute = str_starts_with($path, DIRECTORY_SEPARATOR) ? $path : base_path($path);
+
+        return realpath($absolute) ?: $absolute;
+    }
+
+    private function sanitizedEnvCommand(): ?string
+    {
+        $envCommand = config('gateway.npm.command');
+        $envCommand = is_string($envCommand) ? trim($envCommand) : '';
+
+        if ($envCommand === '') {
+            return null;
+        }
+
+        // Ignore legacy default so new node --import flow is used automatically.
+        if (stripos($envCommand, 'npm run dev') !== false) {
+            return null;
+        }
+
+        return $envCommand;
     }
 }

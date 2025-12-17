@@ -18,7 +18,18 @@ class GatewayService
         $response = $this->client()->get('/session');
         $response->throw();
 
-        return $response->json('data') ?? [];
+        $data = $response->json('data');
+
+        if (is_array($data)) {
+            if (array_is_list($data)) {
+                return array_values(array_map('strval', $data));
+            }
+
+            // Support APIs that return an object keyed by session id.
+            return array_map('strval', array_keys($data));
+        }
+
+        return [];
     }
 
     public function startSession(string $session): array
