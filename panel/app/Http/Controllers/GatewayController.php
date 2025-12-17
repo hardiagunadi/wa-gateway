@@ -112,6 +112,36 @@ class GatewayController extends Controller
         }
     }
 
+    public function deviceStatus(): JsonResponse
+    {
+        try {
+            $sessions = $this->gateway()->listSessions();
+            $statuses = $this->gateway()->listSessionStatuses();
+            $statusMap = [];
+
+            foreach ($statuses as $row) {
+                if (is_array($row) && isset($row['id'])) {
+                    $statusMap[$row['id']] = $row;
+                }
+            }
+
+            $store = $this->sessionConfigStore();
+            $devices = [];
+            foreach ($sessions as $session) {
+                $devices[] = [
+                    'id' => $session,
+                    'status' => $statusMap[$session]['status'] ?? 'disconnected',
+                    'user' => $statusMap[$session]['user'] ?? null,
+                    'config' => $store->get($session),
+                ];
+            }
+
+            return response()->json(['devices' => $devices]);
+        } catch (Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     public function startSession(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -163,16 +193,24 @@ class GatewayController extends Controller
             'device_status_enabled' => ['sometimes', 'boolean'],
         ]);
 
+        $store = $this->sessionConfigStore();
+        $existing = $store->get($session);
+        $apiKey = $data['api_key'] ?? null;
+        $apiKey = is_string($apiKey) ? trim($apiKey) : $apiKey;
+        if ($apiKey === '' || $apiKey === null) {
+            $apiKey = $existing['apiKey'] ?? null;
+        }
+
         $config = [
             'webhookBaseUrl' => $data['webhook_base_url'],
-            'apiKey' => $data['api_key'] ?? null,
+            'apiKey' => $apiKey,
             'incomingEnabled' => $request->boolean('incoming_enabled'),
             'autoReplyEnabled' => $request->boolean('auto_reply_enabled'),
             'trackingEnabled' => $request->boolean('tracking_enabled'),
             'deviceStatusEnabled' => $request->boolean('device_status_enabled'),
         ];
 
-        $this->sessionConfigStore()->put($session, $config);
+        $store->put($session, $config);
 
         return redirect()
             ->route('dashboard')

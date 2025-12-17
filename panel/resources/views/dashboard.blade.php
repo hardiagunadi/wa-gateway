@@ -105,105 +105,93 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2 bg-white shadow rounded-xl p-5 border border-slate-100">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <p class="text-sm text-slate-500">Sessions</p>
-                        <h2 class="text-xl font-semibold">Daftar Session</h2>
-                    </div>
-                    <form method="POST" action="{{ route('sessions.start') }}" class="flex gap-2">
-                        @csrf
-                        <input type="text" name="session" placeholder="nama session" class="rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
-                        <button class="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition">Tambah</button>
-                    </form>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-sm">
-                        <thead>
-                            <tr class="text-left text-slate-500">
-                                <th class="py-2">Session</th>
-                                <th class="py-2 text-right">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="sessions-body">
-                            @forelse($sessions as $session)
-                                <tr class="border-t border-slate-100">
-                                    <td class="py-2 font-medium">{{ $session }}</td>
-                                    <td class="py-2 text-right">
-                                        <form method="POST" action="{{ route('sessions.close', $session) }}" onsubmit="return confirm('Tutup session {{ $session }}?');" class="inline">
-                                            @csrf
-                                            <button class="px-3 py-1 rounded-lg bg-rose-600 text-white text-xs hover:bg-rose-700 transition">Close</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr class="border-t border-slate-100">
-                                    <td colspan="2" class="py-2 text-sm text-slate-500">Belum ada session aktif.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-
-                @if(!empty($sessions))
-                    <div class="mt-6 border-t border-slate-100 pt-4">
-                        <h3 class="text-lg font-semibold mb-2">Webhook Configuration (1 device = 1 webhook)</h3>
-                        <p class="text-xs text-slate-500 mb-4">Atur Webhook & API Key untuk masing-masing session aktif.</p>
-
-                        <div class="space-y-4">
-                            @foreach($sessions as $session)
-                                @php $cfg = $sessionConfigs[$session] ?? []; @endphp
-                                <div class="border border-slate-100 rounded-lg p-4">
-                                    <div class="flex items-center justify-between mb-3">
-                                        <p class="font-semibold">{{ $session }}</p>
-                                        <a href="#"
-                                           onclick="document.getElementById('cfg-{{ $session }}').classList.toggle('hidden'); return false;"
-                                           class="text-xs text-emerald-700 hover:text-emerald-900">Toggle</a>
-                                    </div>
-
-                                    <form id="cfg-{{ $session }}" method="POST" action="{{ route('sessions.config', $session) }}" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        @csrf
-                                        <div class="col-span-1 md:col-span-2">
-                                            <label class="block text-xs text-slate-500 mb-1">Webhook Base URL</label>
-                                            <input type="text" name="webhook_base_url" value="{{ old('webhook_base_url', $cfg['webhookBaseUrl'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
-                                        </div>
-                                        <div class="col-span-1 md:col-span-2">
-                                            <label class="block text-xs text-slate-500 mb-1">API Key (header `key` untuk webhook ini)</label>
-                                            <input type="text" name="api_key" value="{{ old('api_key', $cfg['apiKey'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                                        </div>
-
-                                        <label class="flex items-center gap-2 text-sm">
-                                            <input type="checkbox" name="incoming_enabled" value="1" class="rounded" {{ ($cfg['incomingEnabled'] ?? true) ? 'checked' : '' }}>
-                                            Get Incoming Message
-                                        </label>
-                                        <label class="flex items-center gap-2 text-sm">
-                                            <input type="checkbox" name="auto_reply_enabled" value="1" class="rounded" {{ ($cfg['autoReplyEnabled'] ?? false) ? 'checked' : '' }}>
-                                            Get Auto Reply From Webhook
-                                        </label>
-                                        <label class="flex items-center gap-2 text-sm">
-                                            <input type="checkbox" name="tracking_enabled" value="1" class="rounded" {{ ($cfg['trackingEnabled'] ?? true) ? 'checked' : '' }}>
-                                            Get Tracking URL (status message)
-                                        </label>
-                                        <label class="flex items-center gap-2 text-sm">
-                                            <input type="checkbox" name="device_status_enabled" value="1" class="rounded" {{ ($cfg['deviceStatusEnabled'] ?? true) ? 'checked' : '' }}>
-                                            Get Webhook Device Status
-                                        </label>
-
-                                        <div class="col-span-1 md:col-span-2">
-                                            <div class="text-xs text-slate-500 mt-1">
-                                                <p>Incoming: <span class="font-mono">{{ ($cfg['webhookBaseUrl'] ?? '') ? rtrim($cfg['webhookBaseUrl'], '/') . '/message' : '-' }}</span></p>
-                                                <p>Auto Reply: <span class="font-mono">{{ ($cfg['webhookBaseUrl'] ?? '') ? rtrim($cfg['webhookBaseUrl'], '/') . '/auto-reply' : '-' }}</span></p>
-                                                <p>Status: <span class="font-mono">{{ ($cfg['webhookBaseUrl'] ?? '') ? rtrim($cfg['webhookBaseUrl'], '/') . '/status' : '-' }}</span></p>
-                                                <p>Device: <span class="font-mono">{{ ($cfg['webhookBaseUrl'] ?? '') ? rtrim($cfg['webhookBaseUrl'], '/') . '/session' : '-' }}</span></p>
-                                            </div>
-                                            <button class="mt-3 px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-sm">Simpan</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            @endforeach
+                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                            <span class="text-lg">🔌</span>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500">List Device #all</p>
+                            <h2 class="text-xl font-semibold">Devices</h2>
                         </div>
                     </div>
-                @endif
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <div class="flex items-center gap-2">
+                            <input id="device-search" type="text" placeholder="Search by Device ID / Phone" class="w-full sm:w-64 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <button type="button" id="device-search-btn" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-sm">Search</button>
+                        </div>
+                        <button type="button" id="btn-create-device" class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700">+ Create Device</button>
+                    </div>
+                </div>
+
+                @php
+                    $statusMap = [];
+                    foreach (($sessionStatuses ?? []) as $row) {
+                        if (is_array($row) && isset($row['id'])) $statusMap[$row['id']] = $row;
+                    }
+                @endphp
+
+                <div id="device-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                    @forelse($sessions as $session)
+                        @php
+                            $row = $statusMap[$session] ?? [];
+                            $st = $row['status'] ?? 'disconnected';
+                            $userId = $row['user']['id'] ?? null;
+                            $cfg = $sessionConfigs[$session] ?? [];
+
+                            $badgeClass = match($st) {
+                                'connected' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                'connecting' => 'bg-amber-50 text-amber-700 border-amber-200',
+                                default => 'bg-rose-50 text-rose-700 border-rose-200',
+                            };
+                        @endphp
+                        <div class="device-card border border-slate-100 rounded-xl p-4 bg-white"
+                             data-device="{{ $session }}"
+                             data-phone="{{ $userId ?? '' }}"
+                             data-webhook="{{ $cfg['webhookBaseUrl'] ?? '' }}"
+                             data-incoming="{{ ($cfg['incomingEnabled'] ?? true) ? '1' : '0' }}"
+                             data-autoreply="{{ ($cfg['autoReplyEnabled'] ?? false) ? '1' : '0' }}"
+                             data-tracking="{{ ($cfg['trackingEnabled'] ?? true) ? '1' : '0' }}"
+                             data-device-status="{{ ($cfg['deviceStatusEnabled'] ?? true) ? '1' : '0' }}">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">📱</div>
+                                    <div>
+                                        <p class="font-semibold leading-tight">{{ $session }}</p>
+                                        <p class="device-phone text-xs text-slate-500">{{ $userId ?: 'Not linked' }}</p>
+                                    </div>
+                                </div>
+                                <span class="device-badge text-xs px-2 py-1 rounded-full border {{ $badgeClass }}">{{ ucfirst($st) }}</span>
+                            </div>
+
+                            <div class="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600">
+                                <p class="truncate"><span class="text-slate-500">Webhook:</span> <span class="font-mono">{{ $cfg['webhookBaseUrl'] ?? '-' }}</span></p>
+                                <p class="mt-1">
+                                    <span class="text-slate-500">Incoming:</span> {{ ($cfg['incomingEnabled'] ?? true) ? 'ON' : 'OFF' }} ·
+                                    <span class="text-slate-500">AutoReply:</span> {{ ($cfg['autoReplyEnabled'] ?? false) ? 'ON' : 'OFF' }}
+                                </p>
+                            </div>
+
+                            <div class="mt-4 flex items-center justify-between">
+                                <form method="POST" action="{{ route('sessions.start') }}" class="inline">
+                                    @csrf
+                                    <input type="hidden" name="session" value="{{ $session }}">
+                                    <button class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800">Connect / QR</button>
+                                </form>
+
+                                <div class="flex items-center gap-2">
+                                    <button type="button" class="btn-open-settings px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" data-session="{{ $session }}">Settings</button>
+                                    <form method="POST" action="{{ route('devices.delete', $session) }}" onsubmit="return confirm('Hapus device {{ $session }}?');" class="inline">
+                                        @csrf
+                                        <button class="px-3 py-2 rounded-lg bg-rose-600 text-white text-xs hover:bg-rose-700">Delete</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="text-sm text-slate-500">Belum ada device.</div>
+                    @endforelse
+                </div>
             </div>
 
             <div class="bg-white shadow rounded-xl p-5 border border-slate-100">
@@ -218,116 +206,224 @@
             </div>
         </div>
     </div>
+    <div id="modal-create-device" class="fixed inset-0 bg-black/40 hidden items-center justify-center px-4">
+        <div class="bg-white w-full max-w-lg rounded-xl shadow-lg border border-slate-100 p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-semibold">Create Device</h3>
+                <button type="button" id="btn-close-create" class="text-slate-500 hover:text-slate-900">✕</button>
+            </div>
+            <form method="POST" action="{{ route('devices.create') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                @csrf
+                <div class="col-span-1 md:col-span-2">
+                    <label class="block text-xs text-slate-500 mb-1">Device ID</label>
+                    <input name="device_id" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="mis. device-1" required>
+                </div>
+                <div class="col-span-1 md:col-span-2">
+                    <label class="block text-xs text-slate-500 mb-1">Webhook URL</label>
+                    <input name="webhook_url" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="https://watumalang.online/wablas/webhook" required>
+                </div>
+                <div class="col-span-1 md:col-span-2">
+                    <label class="block text-xs text-slate-500 mb-1">API Key (TL code)</label>
+                    <input name="api_key" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="incoming_enabled" value="1" class="rounded" checked>
+                    Get Incoming Message
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="auto_reply_enabled" value="1" class="rounded">
+                    Get Auto Reply From Webhook
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="tracking_enabled" value="1" class="rounded" checked>
+                    Get Tracking URL (status)
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="device_status_enabled" value="1" class="rounded" checked>
+                    Get Device Status
+                </label>
+
+                <div class="col-span-1 md:col-span-2 flex justify-end gap-2 pt-2">
+                    <button type="button" id="btn-cancel-create" class="px-3 py-2 rounded-lg border border-slate-200 text-sm">Cancel</button>
+                    <button class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-settings" class="fixed inset-0 bg-black/40 hidden items-center justify-center px-4">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg border border-slate-100 p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-semibold">Device Settings</h3>
+                <button type="button" id="btn-close-settings" class="text-slate-500 hover:text-slate-900">✕</button>
+            </div>
+            <div id="settings-content" class="text-sm text-slate-600">Pilih device untuk mengatur.</div>
+        </div>
+    </div>
+
     <script>
         (() => {
-            const tableBody = document.getElementById('sessions-body');
             const apiStatusLabel = document.getElementById('api-status-label');
             const apiStatusDetail = document.getElementById('api-status-detail');
-            const csrfToken = '{{ csrf_token() }}';
-            const closeUrlTemplate = '{{ url('/sessions') }}/:session/close';
-            const listUrl = '{{ route('sessions.list') }}';
             const apiStatusUrl = '{{ route('api.status') }}';
+            const deviceStatusUrl = '{{ route('devices.status') }}';
             const refreshMs = 5000;
+
             const statusClass = {
                 online: 'text-emerald-600',
                 error: 'text-rose-600',
                 unknown: 'text-amber-600',
             };
 
-            const escapeHtml = (str) => String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-
-            const renderSessions = (sessions) => {
-                if (!tableBody) return;
-
-                const normalized = Array.isArray(sessions)
-                    ? sessions
-                    : (sessions && typeof sessions === 'object')
-                        ? Object.keys(sessions)
-                        : [];
-
-                if (normalized.length === 0) {
-                    tableBody.innerHTML = '<tr class="border-t border-slate-100"><td colspan="2" class="py-2 text-sm text-slate-500">Belum ada session aktif.</td></tr>';
-                    return;
-                }
-
-                tableBody.innerHTML = normalized.map((session) => {
-                    const safeSession = escapeHtml(session);
-                    const closeAction = closeUrlTemplate.replace(':session', encodeURIComponent(session));
-
-                    return `
-                        <tr class="border-t border-slate-100">
-                            <td class="py-2 font-medium">${safeSession}</td>
-                            <td class="py-2 text-right">
-                                <form method="POST" action="${closeAction}" onsubmit="return confirm('Tutup session ${safeSession}?');" class="inline">
-                                    <input type="hidden" name="_token" value="${csrfToken}">
-                                    <button class="px-3 py-1 rounded-lg bg-rose-600 text-white text-xs hover:bg-rose-700 transition">Close</button>
-                                </form>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-            };
-
             const setApiStatus = ({ status, health, message }) => {
                 if (!apiStatusLabel || !apiStatusDetail) return;
-
                 const state = status || 'unknown';
-                const labelMap = {
-                    online: 'Online',
-                    error: 'Tidak bisa dijangkau',
-                    unknown: 'Tidak diketahui',
-                };
-
+                const labelMap = { online: 'Online', error: 'Tidak bisa dijangkau', unknown: 'Tidak diketahui' };
                 const label = labelMap[state] || labelMap.unknown;
                 const detail = state === 'online' && health ? JSON.stringify(health) : (message || 'Cek konfigurasi API.');
-
                 apiStatusLabel.textContent = label;
                 apiStatusLabel.className = `${statusClass[state] || statusClass.unknown} font-semibold`;
                 apiStatusDetail.textContent = detail;
                 apiStatusDetail.className = 'text-xs text-slate-500 mt-1 break-all';
             };
 
-            const refreshSessions = async () => {
-                if (document.hidden) return;
+            const applyDeviceStatus = (device) => {
+                const card = document.querySelector(`.device-card[data-device=\"${CSS.escape(device.id)}\"]`);
+                if (!card) return;
+                const badge = card.querySelector('.device-badge');
+                const phone = card.querySelector('.device-phone');
 
+                const status = device.status || 'disconnected';
+                const label = status.charAt(0).toUpperCase() + status.slice(1);
+                if (badge) {
+                    badge.textContent = label;
+                    badge.classList.remove('bg-emerald-50','text-emerald-700','border-emerald-200','bg-amber-50','text-amber-700','border-amber-200','bg-rose-50','text-rose-700','border-rose-200');
+                    if (status === 'connected') badge.classList.add('bg-emerald-50','text-emerald-700','border-emerald-200');
+                    else if (status === 'connecting') badge.classList.add('bg-amber-50','text-amber-700','border-amber-200');
+                    else badge.classList.add('bg-rose-50','text-rose-700','border-rose-200');
+                }
+                if (phone) {
+                    phone.textContent = device.user?.id || 'Not linked';
+                }
+                card.setAttribute('data-phone', device.user?.id || '');
+            };
+
+            const refreshDeviceStatuses = async () => {
+                if (document.hidden) return;
                 try {
-                    const response = await fetch(listUrl, { headers: { 'Accept': 'application/json' } });
-                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    const response = await fetch(deviceStatusUrl, { headers: { 'Accept': 'application/json' } });
+                    if (!response.ok) return;
                     const data = await response.json();
-                    renderSessions(data.sessions || []);
+                    const devices = Array.isArray(data.devices) ? data.devices : [];
+                    devices.forEach(applyDeviceStatus);
                 } catch (error) {
-                    console.error('Gagal refresh sessions:', error);
+                    console.error('Gagal refresh device statuses:', error);
                 }
             };
 
             const refreshApiStatus = async () => {
                 if (document.hidden) return;
-
                 try {
                     const response = await fetch(apiStatusUrl, { headers: { 'Accept': 'application/json' } });
                     if (!response.ok) throw new Error('HTTP ' + response.status);
                     const data = await response.json();
                     setApiStatus(data);
                 } catch (error) {
-                    console.error('Gagal refresh API status:', error);
                     setApiStatus({ status: 'error', message: 'Tidak bisa menjangkau API.' });
                 }
             };
 
-            const refreshAll = () => {
-                refreshSessions();
-                refreshApiStatus();
-            };
+            // Modals
+            const modalCreate = document.getElementById('modal-create-device');
+            const btnCreate = document.getElementById('btn-create-device');
+            const btnCloseCreate = document.getElementById('btn-close-create');
+            const btnCancelCreate = document.getElementById('btn-cancel-create');
+            const modalSettings = document.getElementById('modal-settings');
+            const btnCloseSettings = document.getElementById('btn-close-settings');
+            const settingsContent = document.getElementById('settings-content');
 
-            refreshAll();
+            const show = (el) => el && (el.classList.remove('hidden'), el.classList.add('flex'));
+            const hide = (el) => el && (el.classList.add('hidden'), el.classList.remove('flex'));
+
+            btnCreate?.addEventListener('click', () => show(modalCreate));
+            btnCloseCreate?.addEventListener('click', () => hide(modalCreate));
+            btnCancelCreate?.addEventListener('click', () => hide(modalCreate));
+            modalCreate?.addEventListener('click', (e) => { if (e.target === modalCreate) hide(modalCreate); });
+
+            btnCloseSettings?.addEventListener('click', () => hide(modalSettings));
+            modalSettings?.addEventListener('click', (e) => { if (e.target === modalSettings) hide(modalSettings); });
+
+            document.querySelectorAll('.btn-open-settings').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const session = btn.getAttribute('data-session');
+                    if (!session || !settingsContent) return;
+                    const card = document.querySelector(`.device-card[data-device=\"${CSS.escape(session)}\"]`);
+                    if (!card) return;
+
+                    const webhook = card.getAttribute('data-webhook') || '';
+                    const incoming = card.getAttribute('data-incoming') === '1';
+                    const autoreply = card.getAttribute('data-autoreply') === '1';
+                    const tracking = card.getAttribute('data-tracking') === '1';
+                    const deviceStatus = card.getAttribute('data-device-status') === '1';
+
+                    settingsContent.innerHTML = `
+                        <form method=\"POST\" action=\"${'{{ url('/sessions') }}'}/${encodeURIComponent(session)}/config\" class=\"grid grid-cols-1 md:grid-cols-2 gap-3\">
+                            <input type=\"hidden\" name=\"_token\" value=\"{{ csrf_token() }}\" />
+                            <div class=\"col-span-1 md:col-span-2\">
+                                <label class=\"block text-xs text-slate-500 mb-1\">Webhook URL</label>
+                                <input name=\"webhook_base_url\" type=\"text\" value=\"${webhook.replace(/\\\"/g,'&quot;')}\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" required>
+                            </div>
+                            <div class=\"col-span-1 md:col-span-2\">
+                                <label class=\"block text-xs text-slate-500 mb-1\">API Key</label>
+                                <input name=\"api_key\" type=\"text\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"isi jika ingin update\" />
+                            </div>
+                            <label class=\"flex items-center gap-2 text-sm\">
+                                <input type=\"checkbox\" name=\"incoming_enabled\" value=\"1\" class=\"rounded\" ${incoming ? 'checked' : ''}>
+                                Get Incoming Message
+                            </label>
+                            <label class=\"flex items-center gap-2 text-sm\">
+                                <input type=\"checkbox\" name=\"auto_reply_enabled\" value=\"1\" class=\"rounded\" ${autoreply ? 'checked' : ''}>
+                                Get Auto Reply From Webhook
+                            </label>
+                            <label class=\"flex items-center gap-2 text-sm\">
+                                <input type=\"checkbox\" name=\"tracking_enabled\" value=\"1\" class=\"rounded\" ${tracking ? 'checked' : ''}>
+                                Get Tracking URL (status)
+                            </label>
+                            <label class=\"flex items-center gap-2 text-sm\">
+                                <input type=\"checkbox\" name=\"device_status_enabled\" value=\"1\" class=\"rounded\" ${deviceStatus ? 'checked' : ''}>
+                                Get Device Status
+                            </label>
+                            <div class=\"col-span-1 md:col-span-2 flex justify-end pt-2\">
+                                <button class=\"px-3 py-2 rounded-lg bg-slate-900 text-white text-sm\">Save</button>
+                            </div>
+                        </form>
+                    `;
+
+                    show(modalSettings);
+                });
+            });
+
+            // Search
+            const searchInput = document.getElementById('device-search');
+            const searchBtn = document.getElementById('device-search-btn');
+            const applySearch = () => {
+                const q = (searchInput?.value || '').trim().toLowerCase();
+                document.querySelectorAll('.device-card').forEach((card) => {
+                    const id = (card.getAttribute('data-device') || '').toLowerCase();
+                    const phone = (card.getAttribute('data-phone') || '').toLowerCase();
+                    const match = !q || id.includes(q) || phone.includes(q);
+                    card.classList.toggle('hidden', !match);
+                });
+            };
+            searchBtn?.addEventListener('click', applySearch);
+            searchInput?.addEventListener('input', applySearch);
+
+            refreshApiStatus();
+            refreshDeviceStatuses();
             setInterval(() => {
-                if (document.hidden) return;
-                refreshAll();
+                refreshApiStatus();
+                refreshDeviceStatuses();
             }, refreshMs);
         })();
     </script>
