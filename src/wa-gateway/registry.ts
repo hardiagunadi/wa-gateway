@@ -12,7 +12,10 @@ export type DeviceRecord = {
   createdAt: string;
 };
 
-const rootDir = path.resolve(process.cwd(), "wa_credentials");
+// Anchor credentials directory to project root (or override via env) so lookups don't depend on cwd.
+const rootDir = process.env.WA_CREDENTIALS_DIR
+  ? path.resolve(process.env.WA_CREDENTIALS_DIR)
+  : path.resolve(__dirname, "../../wa_credentials");
 const devicesPath = path.join(rootDir, "device-registry.json");
 
 async function ensureDir() {
@@ -79,4 +82,3 @@ export const deleteDeviceBySessionId = async (sessionId: string) => {
 export const generateToken = () => {
   return crypto.randomBytes(16).toString("hex");
 };
-

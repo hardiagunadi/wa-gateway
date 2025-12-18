@@ -1,6 +1,6 @@
 # Headless Multi Session WhatsApp Gateway
 
-A headless multi-session WhatsApp gateway with multi-device support, easy to set up using Docker.
+A headless multi-session WhatsApp gateway with multi-device support, runnable directly with Node.js.
 
 - Multi-device support
 - Multi-session / multiple phone numbers
@@ -13,71 +13,40 @@ A headless multi-session WhatsApp gateway with multi-device support, easy to set
 
 ## ⚠️ Prerequisites
 
-- Docker & Docker Compose installed
-  👉 [Install Docker](https://docs.docker.com/get-docker/)
+- Node.js 20+
+- npm (ships with Node.js)
+- A WhatsApp device to pair via QR
 
 ---
 
-## Installation & Running
-
-### 1. Create Application Folder
-
-Create a new folder for your application at `~/app/wa-gateway` and navigate into it:
+## Installation & Running (Node.js)
 
 ```bash
-mkdir -p ~/app/wa-gateway
-cd ~/app/wa-gateway
+git clone https://github.com/hardiagunadi/wa-gateway.git
+cd wa-gateway
+npm install
+
+# Create .env (at minimum set KEY; PORT defaults to 5001)
+KEY=$(openssl rand -hex 16)
+cat > .env <<EOF
+KEY=$KEY
+PORT=5001
+WEBHOOK_BASE_URL=
+EOF
+
+# Start the gateway (or use npm run dev for watch mode)
+npm run start
 ```
 
-### 2. Create `docker-compose.yaml`
-
-Use the `nano` editor to create the file:
-
-```bash
-nano docker-compose.yaml
-```
-
-Paste the following content into the editor to create `docker-compose.yaml`
-
-```yaml
-# docker-compose.yaml
-services:
-  wa-gateway:
-    container_name: "wa-gateway"
-    restart: unless-stopped
-    image: mimamch/wa-gateway:latest
-    volumes:
-      - ./wa_credentials:/app/wa_credentials
-      - ./media:/app/media
-    ports:
-      - "5001:5001"
-    environment:
-      - KEY= # make your own api key (optional)
-```
-
-### 3. Start the container
-
-Run the following command in the same directory as your `docker-compose.yaml`:
-
-```bash
-docker compose up -d
-```
-
-### 4. Open Browser & Scan QR Code
-
-Visit this URL to scan the QR code from your WhatsApp device:
+Open the browser to scan the QR code from your WhatsApp device:
 
 ```
 http://localhost:5001/session/start?session=mysession
 ```
 
-> Replace `localhost` with your server's IP or domain if not running locally.
+Replace `mysession` with your desired session name.
 
-> Replace `mysession` with your desired session name.
-
-### 5. Send Your First Message
-
-Example to send a text message:
+Send your first text message:
 
 ```
 http://localhost:5001/message/send-text?session=mysession&to=628123456789&text=Hello
@@ -179,7 +148,7 @@ Example webhook endpoints:
 
 ## Access Media Files
 
-Media files are stored inside the `./media` directory in the container. You can access them via:
+Media files are stored inside the local `./media` directory. You can access them via:
 
 ```
 http://localhost:5001/media/FILE_NAME
@@ -192,10 +161,8 @@ http://localhost:5001/media/FILE_NAME
 To update to the latest version:
 
 ```bash
-cd ~/app/wa-gateway
-docker compose pull
-docker compose down
-docker compose up -d
+git pull
+npm install
 ```
 
 ## Documentation

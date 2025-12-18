@@ -18,10 +18,9 @@
   openssl rand -hex 16
   ```
 - Set di:
-  - `docker-compose.yaml` (ENV `KEY`) jika pakai Docker.
   - `/home/wa-gateway/.env` (KEY) untuk mode Node langsung.
   - `panel/.env` (`WA_GATEWAY_KEY=`) agar panel memanggil API dengan key yang sama.
-- Restart gateway (Stop/Start dari panel atau restart proses Node/Docker).
+- Restart gateway (Stop/Start dari panel atau restart proses Node).
 
 ## 3) Panel Laravel
 - Lokasi: `/home/wa-gateway/panel`
@@ -38,24 +37,16 @@
   ```
 - Log proses Node (saat start via panel): `panel/storage/logs/npm-server.log`
 
-## 4) Run via Docker (opsional)
-```bash
-cd /home/wa-gateway
-docker compose up -d
-```
-Pastikan `KEY` di `docker-compose.yaml` sama dengan yang dipakai panel.
-
-## 5) Workflow Operasional Ringkas
+## 4) Workflow Operasional Ringkas
 1. Tentukan/ubah KEY (lihat bagian 2), sinkronkan ke panel dan gateway.
-2. Start gateway (panel NPM Server atau perintah manual / Docker).
+2. Start gateway (panel NPM Server atau perintah manual).
 3. Cek health: `http://localhost:5001/health`.
 4. Login panel → ganti password admin di Profil → kelola sesi/QR dari dashboard.
 5. Pantau log jika ada kendala:
    - Gateway Node (via panel start): `panel/storage/logs/npm-server.log`
-   - Docker mode: `docker compose logs -f`
 
-## 6) Installer Otomatis (Server Baru)
-Script ini akan memasang dependensi (Docker + Compose, Node 20, PHP default 8.3 + ekstensi, Composer), menyiapkan `.env` gateway/panel, menginstal dependensi Node/Composer, menjalankan migrasi, dan build panel. Jika suatu komponen sudah ada, akan dilewati.
+## 5) Installer Otomatis (Server Baru)
+Script ini akan memasang dependensi (Node 20, PHP default 8.3 + ekstensi, Composer), menyiapkan `.env` gateway/panel, menginstal dependensi Node/Composer, menjalankan migrasi, dan build panel. Jika suatu komponen sudah ada, akan dilewati.
 
 ### Menjalankan
 ```bash

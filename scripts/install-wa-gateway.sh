@@ -73,34 +73,6 @@ apt_update_once() {
   fi
 }
 
-install_docker() {
-  if has_cmd docker && docker compose version >/dev/null 2>&1; then
-    log "Docker + compose sudah tersedia, skip."
-    return
-  fi
-
-  log "Instal Docker Engine + Compose plugin"
-  apt_update_once
-  as_root apt-get install -y ca-certificates curl gnupg lsb-release
-  as_root install -m 0755 -d /etc/apt/keyrings
-  if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | as_root gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    as_root chmod a+r /etc/apt/keyrings/docker.gpg
-  fi
-  echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-    | as_root tee /etc/apt/sources.list.d/docker.list >/dev/null
-  apt_update_force
-  as_root apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  as_root systemctl enable --now docker || true
-
-  if ! groups "${EXPECTED_USER}" | tr ' ' '\n' | grep -qx docker; then
-    log "Menambahkan user '${EXPECTED_USER}' ke group docker"
-    as_root usermod -aG docker "${EXPECTED_USER}"
-    warn "Agar bisa menjalankan docker tanpa sudo, logout/login ulang user '${EXPECTED_USER}'."
-  fi
-}
-
 install_node() {
   if has_cmd node; then
     local v
@@ -257,7 +229,6 @@ main() {
     apt_update_once
     as_root apt-get install -y perl
   fi
-  install_docker
   install_node
   install_php
   install_composer
