@@ -54,6 +54,7 @@ class GatewayController extends Controller
             'qrData' => session('qr'),
             'qrSession' => session('qrSession'),
             'statusMessage' => session('status'),
+            'autoRefresh' => session('autoRefresh'),
             'errorsBag' => $request->session()->get('errors'),
             'npmStatus' => $npmStatus,
             'sessionConfigs' => $sessionConfigs,
@@ -112,6 +113,7 @@ class GatewayController extends Controller
                     'status' => $qr ? "Device {$sessionId} dibuat, scan QR di bawah." : "Device {$sessionId} berhasil tersambung.",
                     'qr' => $qr,
                     'qrSession' => $sessionId,
+                    'autoRefresh' => 'device-create',
                 ]);
         } catch (Throwable $e) {
             $msg = $e->getMessage();
@@ -304,7 +306,10 @@ class GatewayController extends Controller
 
             return redirect()
                 ->route('dashboard')
-                ->with('status', "NPM server dijalankan (PID {$pid}).");
+                ->with([
+                    'status' => "NPM server dijalankan (PID {$pid}).",
+                    'autoRefresh' => 'server-start',
+                ]);
         } catch (Throwable $e) {
             return redirect()
                 ->route('dashboard')

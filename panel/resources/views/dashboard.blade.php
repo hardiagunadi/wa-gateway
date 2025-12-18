@@ -293,6 +293,14 @@
     <script>
         (() => {
             const sessionsBaseUrl = '{{ url('/sessions') }}';
+            const autoRefreshReason = @json($autoRefresh ?? null);
+            const qrPresent = @json((bool) $qrData);
+
+            // Auto refresh after server start or device creation; allow time to scan QR first.
+            if (autoRefreshReason === 'server-start' || autoRefreshReason === 'device-create') {
+                const delay = autoRefreshReason === 'device-create' && qrPresent ? 20000 : 1500;
+                setTimeout(() => window.location.reload(), delay);
+            }
 
             // Master key toggle/copy
             const keyMasked = document.getElementById('gateway-key-masked');
@@ -358,7 +366,6 @@
                 const st = card.getAttribute('data-status') || 'disconnected';
                 if (id) lastStatuses.set(id, st);
             });
-            let refreshAfterConnect = false;
 
             const applyDeviceStatus = (device) => {
                 const card = document.querySelector(`.device-card[data-device=\"${CSS.escape(device.id)}\"]`);
@@ -384,15 +391,6 @@
                 }
                 const cleanPhone = (device.user?.id || '').replace(/@.*/, '');
                 card.setAttribute('data-phone', cleanPhone || '');
-
-                // Notify once when QR is scanned and the device transitions to connected
-                if (!refreshAfterConnect && prevStatus && prevStatus !== 'connected' && status === 'connected') {
-                    refreshAfterConnect = true;
-                    setTimeout(() => {
-                        alert(`Kode QR berhasil discan dan device ${device.id} terhubung. Halaman akan direfresh.`);
-                        window.location.reload();
-                    }, 50);
-                }
             };
 
             const refreshDeviceStatuses = async () => {
