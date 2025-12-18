@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panduan Implementasi API wa-gateway</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Space+Grotesk:wght@500;600&display=swap");
+    :root {
+      --bg: #0b1021;
+      --card: #0f172a;
+      --card-soft: #121b32;
+      --muted: #8aa2c0;
+      --text: #e7ecf5;
+      --accent: #6ef3c5;
+      --accent-2: #7aa7ff;
+      --border: rgba(255, 255, 255, 0.06);
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Manrope", "Space Grotesk", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(110, 243, 197, 0.12), transparent 30%),
+                  radial-gradient(circle at 80% 0%, rgba(122, 167, 255, 0.12), transparent 28%),
+                  var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .page { max-width: 1100px; margin: 0 auto 96px; }
+    header.hero {
+      background: linear-gradient(135deg, rgba(110, 243, 197, 0.12), rgba(122, 167, 255, 0.12));
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 1.2);
+      padding: 28px 32px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    header.hero:after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 20% 20%, rgba(110, 243, 197, 0.15), transparent 35%),
+                  radial-gradient(circle at 80% 40%, rgba(122, 167, 255, 0.15), transparent 35%);
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    header.hero h1 {
+      margin: 0 0 8px;
+      font-family: "Space Grotesk", "Manrope", sans-serif;
+      letter-spacing: 0.5px;
+      font-size: clamp(28px, 4vw, 36px);
+    }
+    header.hero p { margin: 0; color: var(--muted); max-width: 720px; }
+    .tags { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .tag {
+      border-radius: 999px;
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.02);
+      font-size: 14px;
+    }
+    nav.quicklinks {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 18px 0 0;
+      position: relative;
+      z-index: 1;
+    }
+    nav.quicklinks a {
+      padding: 10px 14px;
+      border-radius: 10px;
+      text-decoration: none;
+      color: var(--text);
+      background: var(--card);
+      border: 1px solid var(--border);
+      transition: transform 0.1s ease, background 0.2s ease;
+    }
+    nav.quicklinks a:hover { transform: translateY(-1px); background: var(--card-soft); }
+    section { margin-top: 24px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      box-shadow: var(--shadow);
+    }
+    .card h2 { margin-top: 0; letter-spacing: 0.2px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .muted { color: var(--muted); }
+    code, pre {
+      font-family: "Space Grotesk", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    code { padding: 2px 6px; font-size: 14px; }
+    pre {
+      padding: 14px;
+      overflow: auto;
+      font-size: 14px;
+      margin: 12px 0 0;
+    }
+    ul { margin: 0; padding-left: 18px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th { color: var(--muted); font-weight: 600; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(110, 243, 197, 0.12);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+      margin-right: 8px;
+      margin-bottom: 6px;
+    }
+    .accent { color: var(--accent); }
+    .section-title { display: flex; align-items: center; gap: 10px; }
+    .section-title span {
+      display: inline-flex;
+      width: 10px; height: 10px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 0 4px rgba(110, 243, 197, 0.15);
+    }
+    .small { font-size: 14px; color: var(--muted); }
+    .kbd {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      font-size: 13px;
+      color: var(--text);
+    }
+    @media (max-width: 680px) {
+      body { padding: 16px; }
+      header.hero { padding: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <h1>Panduan Implementasi API wa-gateway</h1>
+      <p>Panduan praktis dan terperinci untuk mengintegrasikan aplikasi Anda dengan API wa-gateway: autentikasi, manajemen device, pengiriman pesan, hingga fitur V2.</p>
+      <div class="tags">
+        <div class="tag">Multi-device & multi-session</div>
+        <div class="tag">Kompatibel dengan wa-gateway</div>
+        <div class="tag">Webhook friendly</div>
+      </div>
+      <nav class="quicklinks">
+        <a href="#ringkasan">Ringkasan cepat</a>
+        <a href="#auth">Autentikasi</a>
+        <a href="#device">Device & token</a>
+        <a href="#v1">Endpoint V1</a>
+        <a href="#v2">Endpoint V2</a>
+        <a href="#jadwal">Jadwal & otomatisasi</a>
+        <a href="#webhook">Webhook</a>
+        <a href="#checklist">Checklist</a>
+      </nav>
+    </header>
+
+    <section id="ringkasan" class="card">
+      <div class="section-title"><span></span><h2>Ringkasan cepat</h2></div>
+      <div class="grid">
+        <div>
+          <p class="muted">Prasyarat</p>
+          <ul>
+            <li>Node.js 20+ dan npm terpasang.</li>
+            <li>WhatsApp yang aktif untuk dipasangkan via QR.</li>
+            <li>Server wa-gateway berjalan (default <code>PORT=5001</code>).</li>
+          </ul>
+        </div>
+        <div>
+          <p class="muted">Jalankan singkat</p>
+          <pre><code class="language-bash">npm install
+PORT=5001 KEY=&lt;master-key-opsional&gt; npm start
+# Buka QR: http://localhost:5001/session/start?session=mysession</code></pre>
+        </div>
+        <div>
+          <p class="muted">Alur inti</p>
+          <ul>
+            <li>Buat device + token → scan QR.</li>
+            <li>Kirim pesan via endpoint V1 (form) atau V2 (JSON).</li>
+            <li>Opsional: set webhook untuk event masuk.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="auth" class="card">
+      <div class="section-title"><span></span><h2>Autentikasi & key</h2></div>
+      <p class="muted">Token mewakili satu device/session. Secret key pada format lama diabaikan.</p>
+      <table>
+        <tr><th>Metode</th><th>Contoh</th><th>Catatan</th></tr>
+        <tr><td>Header Authorization</td><td><code>Authorization: 4fd23...</code></td><td>Bisa juga <code>Bearer &lt;token&gt;</code> atau <code>&lt;token&gt;.&lt;secret&gt;</code> (secret diabaikan).</td></tr>
+        <tr><td>Query</td><td><code>?token=4fd23...</code></td><td>Dipakai bila tidak ingin mengirim header.</td></tr>
+        <tr><td>Master key</td><td><code>key: &lt;KEY&gt;</code></td><td>Wajib jika env <code>KEY</code> di-set; bisa via header atau query <code>?key=...</code>.</td></tr>
+      </table>
+      <p class="small">Mapping: token → <span class="accent">sessionId</span> melalui <code>wa_credentials/device-registry.json</code>. Semua aksi device & pengiriman pesan memilih session berdasar token.</p>
+    </section>
+
+    <section id="device" class="card">
+      <div class="section-title"><span></span><h2>Device & token lifecycle</h2></div>
+      <div class="grid">
+        <div>
+          <div class="pill">POST /api/device/create</div>
+          <p>Membuat device + session dan mengembalikan token serta QR (jika perlu).</p>
+          <pre><code class="language-bash">curl -X POST http://localhost:5001/api/device/create \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "name=My Device&phone=62812xxxx"</code></pre>
+          <pre><code class="language-json">{
+  "status": true,
+  "message": "create device successfully",
+  "data": {
+    "device_name": "My Device",
+    "device": "62812xxxx",
+    "token": "generated-token",
+    "qr": "qr-string-or-null"
+  }
+}</code></pre>
+        </div>
+        <div>
+          <div class="pill">GET /api/device/scan</div>
+          <p>Memulai session dan mengembalikan QR. Gunakan token pada header/query.</p>
+          <div class="pill">GET /api/device/info</div>
+          <p>Lihat status device.</p>
+          <pre><code class="language-json">{
+  "status": "success",
+  "message": "Success",
+  "data": [
+    { "phone": "62812...@s.whatsapp.net",
+      "device": "sessionId",
+      "status": "online",
+      "webhook_url": "https://..." }
+  ]
+}</code></pre>
+        </div>
+        <div>
+          <div class="pill">POST /api/device/disconnect</div>
+          <p>Logout session tanpa menghapus registry.</p>
+          <div class="pill">POST /api/device/delete</div>
+          <p>Logout + hapus registry device dari <code>wa_credentials/device-registry.json</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="v1" class="card">
+      <div class="section-title"><span></span><h2>Endpoint V1 (form-data / query)</h2></div>
+      <p class="muted">Gunakan saat Anda butuh kompatibilitas penuh dengan format lama (form-urlencoded atau query). Semua endpoint memilih session berdasar token.</p>
+
+      <h3>Kiriman teks</h3>
+      <div class="pill">GET /api/send-message</div>
+      <pre><code class="language-bash">curl "http://localhost:5001/api/send-message?token=TOKEN&phone=62812xxx&message=halo&isGroup=false"</code></pre>
+      <div class="pill">POST /api/send-message</div>
+      <pre><code class="language-bash">curl -X POST http://localhost:5001/api/send-message \
+  -H "Authorization: TOKEN" \
+  -d "phone=62812xxx" \
+  -d "message=halo" \
+  -d "isGroup=false" \
+  -d "ref_id=opsional"</code></pre>
+      <pre><code class="language-json">{"status":true,"message":"Success","data":{"phone":"...","message":"...","ref_id":null,"id":"..."}}</code></pre>
+
+      <h3>Media</h3>
+      <div class="grid">
+        <div>
+          <div class="pill">POST /api/send-image</div>
+          <ul>
+            <li>Fields: <code>phone</code>, (<code>image</code> atau <code>url</code>), <code>caption</code> opsional.</li>
+            <li><code>isGroup</code> opsional.</li>
+          </ul>
+        </div>
+        <div>
+          <div class="pill">POST /api/send-video</div>
+          <ul>
+            <li>Fields: <code>phone</code>, (<code>video</code> atau <code>url</code>), <code>caption/message</code> opsional.</li>
+            <li><code>isGroup</code> opsional.</li>
+          </ul>
+        </div>
+        <div>
+          <div class="pill">POST /api/send-document</div>
+          <ul>
+            <li>Fields: <code>phone</code>, (<code>document</code> atau <code>url</code>), <code>filename</code> opsional (default <code>document.pdf</code>).</li>
+            <li><code>caption/message</code> opsional, <code>isGroup</code> opsional.</li>
+          </ul>
+        </div>
+        <div>
+          <div class="pill">POST /api/send-audio</div>
+          <ul>
+            <li>Fields: <code>phone</code>, (<code>audio</code> atau <code>url</code>), <code>ptt/asVoiceNote</code> opsional.</li>
+            <li><code>isGroup</code> opsional.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="v2" class="card">
+      <div class="section-title"><span></span><h2>Endpoint V2 (JSON)</h2></div>
+      <p class="muted">Payload <code>application/json</code> dengan array <code>data</code>. Secret key pada header lama diabaikan; cukup kirim token.</p>
+
+      <h3>Text</h3>
+      <div class="pill">POST /api/v2/send-message</div>
+      <pre><code class="language-json">{
+  "data": [
+    { "phone": "62812xxx", "message": "Hello", "isGroup": false, "ref_id": "trx-1" }
+  ]
+}</code></pre>
+
+      <h3>Media (image / video / document / audio)</h3>
+      <div class="pill">POST /api/v2/send-image</div>
+      <pre><code class="language-json">{
+  "data": [
+    { "phone": "62812xxx", "image": "https://...", "caption": "caption", "isGroup": false, "ref_id": "opsional" }
+  ]
+}</code></pre>
+      <p class="small">Gunakan field yang sesuai: <code>image|video|document|audio</code> atau <code>url</code>. <code>caption</code>, <code>isGroup</code>, <code>ref_id</code> opsional.</p>
+
+      <h3>Link</h3>
+      <div class="pill">POST /api/v2/send-link</div>
+      <pre><code class="language-json">{
+  "data": [
+    { "phone": "62812xxx", "message": { "text": "Info", "link": "https://wa-gateway.example" } }
+  ]
+}</code></pre>
+
+      <h3>List</h3>
+      <div class="pill">POST /api/v2/send-list</div>
+      <pre><code class="language-json">{
+  "data": [
+    {
+      "phone": "62812xxx",
+      "message": {
+        "title": "Menu",
+        "description": "Pilih salah satu",
+        "buttonText": "Pilih",
+        "footer": "Footer",
+        "lists": [
+          { "title": "Item 1", "description": "Desc 1" }
+        ]
+      }
+    }
+  ]
+}</code></pre>
+
+      <h3>Location</h3>
+      <div class="pill">POST /api/v2/send-location</div>
+      <pre><code class="language-json">{
+  "data": [
+    {
+      "phone": "62812xxx",
+      "message": { "name": "Place", "address": "Street", "latitude": -7.36, "longitude": 109.91 }
+    }
+  ]
+}</code></pre>
+
+      <h3>Group*</h3>
+      <p class="small">Endpoint grup menganggap <code>group_id</code> adalah WhatsApp group JID (<code>12345-67890@g.us</code>).</p>
+      <div class="pill">GET /api/v2/group/text</div>
+      <div class="pill">POST /api/v2/group/text</div>
+      <div class="pill">POST /api/v2/group/image|video|audio|document</div>
+      <pre><code class="language-bash">curl "http://localhost:5001/api/v2/group/text?group_id=12345-67890@g.us&message=halo"
+curl -X POST http://localhost:5001/api/v2/group/text \
+  -H "Authorization: TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"data":[{"group_id":"12345-67890@g.us","message":"halo semua"}]}'</code></pre>
+    </section>
+
+    <section id="jadwal" class="card">
+      <div class="section-title"><span></span><h2>Jadwal, otomatisasi, dan data</h2></div>
+      <div class="grid">
+        <div>
+          <h3>Schedule</h3>
+          <div class="pill">POST /api/v2/schedule</div>
+          <div class="pill">PUT /api/v2/schedule/{schedule_id}</div>
+          <div class="pill">DELETE /api/v2/delete-schedule?id=id1,id2</div>
+          <p class="small">Disimpan di <code>wa_credentials/wa-gateway-schedules.json</code> dan dijalankan oleh scheduler internal.</p>
+          <pre><code class="language-json">{
+  "data": [
+    { "category": "text", "phone": "62812xxx", "scheduled_at": "2025-12-17 20:00:00", "text": "Hallo" }
+  ]
+}</code></pre>
+        </div>
+        <div>
+          <h3>Auto Reply</h3>
+          <div class="pill">POST /api/v2/autoreply</div>
+          <div class="pill">PUT /api/v2/autoreply/{id}</div>
+          <div class="pill">DELETE /api/v2/autoreply/{id}</div>
+          <div class="pill">GET /api/v2/autoreply/getData?keyword=hello</div>
+          <p class="small">Rules disimpan per-token dan aktif jika webhook auto-reply dimatikan.</p>
+          <pre><code class="language-json">{
+  "keyword": "hello",
+  "response": "hello too"
+}</code></pre>
+        </div>
+        <div>
+          <h3>Contact</h3>
+          <div class="pill">POST /api/v2/contact</div>
+          <div class="pill">POST /api/v2/contact/update</div>
+          <div class="pill">GET /api/v2/contact?phone=...</div>
+          <p class="small">Simpan kontak per-token. Hilangkan <code>phone</code> pada GET untuk list.</p>
+        </div>
+        <div>
+          <h3>Media</h3>
+          <div class="pill">DELETE /api/v2/media/delete/{id}</div>
+          <p class="small">Menghapus file lokal di folder <code>./media</code> yang namanya mengandung substring <code>{id}</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="webhook" class="card">
+      <div class="section-title"><span></span><h2>Webhook (opsional)</h2></div>
+      <p>Set <code>WEBHOOK_BASE_URL</code> di <span class="kbd">.env</span> untuk menerima event real-time.</p>
+      <ul>
+        <li>Session event: <code>POST /webhook/session</code></li>
+        <li>Message event: <code>POST /webhook/message</code></li>
+      </ul>
+      <p class="small">Pastikan endpoint Anda idempotent dan mampu menerima update status online/offline serta pesan masuk.</p>
+    </section>
+
+    <section class="card">
+      <div class="section-title"><span></span><h2>Respons & keterbatasan</h2></div>
+      <ul>
+        <li>Respons umum: <code>{ "status": true|false, "message": "...", "data": ... }</code></li>
+        <li>Fitur lanjutan (reporting, reminder, upload media internal, blacklist global, agent, dll) belum tersedia di versi ini dan akan membalas <code>501 Not Implemented</code>.</li>
+        <li>Media lokal tersimpan di <code>./media</code>; akses via <code>http://host:port/media/&lt;nama-file&gt;</code>.</li>
+      </ul>
+    </section>
+
+    <section id="checklist" class="card">
+      <div class="section-title"><span></span><h2>Checklist implementasi</h2></div>
+      <ol>
+        <li>Jalankan wa-gateway, set <code>KEY</code> jika ingin master key.</li>
+        <li>Buat device via <code>/api/device/create</code>, simpan token.</li>
+        <li>Scan QR via <code>/api/device/scan</code> hingga status online.</li>
+        <li>Pasang webhook (opsional) untuk event masuk.</li>
+        <li>Kirim pesan: pilih V1 (form) atau V2 (JSON) sesuai kebutuhan.</li>
+        <li>Gunakan <code>/api/device/info</code> dan <code>/api/v2/*</code> untuk monitoring, penjadwalan, dan otomatisasi.</li>
+      </ol>
+    </section>
+  </div>
+</body>
+</html>
