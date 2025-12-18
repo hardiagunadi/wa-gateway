@@ -38,6 +38,14 @@ class GatewayController extends Controller
             $sessionConfigs[$session] = $store->get($session);
         }
 
+        $npmStatus = $npm->status();
+        if (!$npmStatus['running'] && $health) {
+            // Infer running when API is reachable even if pid file is absent (e.g., started via pm2/systemd).
+            $npmStatus['running'] = true;
+            $npmStatus['pid'] = null;
+            $npmStatus['source'] = 'inferred';
+        }
+
         return view('dashboard', [
             'sessions' => $sessions,
             'health' => $health,
@@ -47,7 +55,7 @@ class GatewayController extends Controller
             'qrSession' => session('qrSession'),
             'statusMessage' => session('status'),
             'errorsBag' => $request->session()->get('errors'),
-            'npmStatus' => $npm->status(),
+            'npmStatus' => $npmStatus,
             'sessionConfigs' => $sessionConfigs,
             'gatewayConfig' => [
                 'base' => config('gateway.base_url'),
@@ -96,7 +104,7 @@ class GatewayController extends Controller
 
         try {
             $response = $this->gateway()->startSession($sessionId);
-            $qr = $response['qr'] ?? null;
+            $qr = $response['qr_image'] ?? $response['qrImage'] ?? $response['qr'] ?? null;
 
             return redirect()
                 ->route('dashboard')
@@ -172,7 +180,7 @@ class GatewayController extends Controller
 
         try {
             $response = $this->gateway()->startSession($data['session']);
-            $qr = $response['qr'] ?? null;
+            $qr = $response['qr_image'] ?? $response['qrImage'] ?? $response['qr'] ?? null;
 
             return redirect()
                 ->route('dashboard')
@@ -196,7 +204,7 @@ class GatewayController extends Controller
 
         try {
             $response = $this->gateway()->restartSession($data['session']);
-            $qr = $response['qr'] ?? null;
+            $qr = $response['qr_image'] ?? $response['qrImage'] ?? $response['qr'] ?? null;
 
             return redirect()
                 ->route('dashboard')
@@ -209,6 +217,16 @@ class GatewayController extends Controller
             return redirect()
                 ->route('dashboard')
                 ->withErrors(['session' => $e->getMessage()]);
+        }
+    }
+
+    public function messageStatuses(string $session): JsonResponse
+    {
+        try {
+            $data = $this->gateway()->listMessageStatuses($session);
+            return response()->json(['ok' => true, 'data' => $data]);
+        } catch (Throwable $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
         }
     }
 

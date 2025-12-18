@@ -86,7 +86,13 @@
                     <div>
                         <p class="text-sm text-slate-500 mb-1">NPM Server</p>
                         @if($npmStatus['running'])
-                            <p class="text-emerald-600 font-semibold">Running (PID {{ $npmStatus['pid'] }})</p>
+                            @if(isset($npmStatus['source']) && $npmStatus['source'] === 'inferred')
+                                <p class="text-emerald-600 font-semibold">Running (external)</p>
+                            @elseif($npmStatus['pid'])
+                                <p class="text-emerald-600 font-semibold">Running (PID {{ $npmStatus['pid'] }})</p>
+                            @else
+                                <p class="text-emerald-600 font-semibold">Running</p>
+                            @endif
                         @else
                             <p class="text-rose-600 font-semibold">Stopped</p>
                         @endif
@@ -146,6 +152,7 @@
                             $row = $statusMap[$session] ?? [];
                             $st = $row['status'] ?? 'disconnected';
                             $userId = $row['user']['id'] ?? null;
+                            $userDisplay = $userId ? preg_replace('/@.*/', '', $userId) : 'Not linked';
                             $cfg = $sessionConfigs[$session] ?? [];
                             $deviceName = $cfg['deviceName'] ?? null;
                             $deviceName = is_string($deviceName) && trim($deviceName) !== '' ? trim($deviceName) : null;
@@ -156,10 +163,10 @@
                                 default => 'bg-rose-50 text-rose-700 border-rose-200',
                             };
                         @endphp
-                        <div class="device-card border border-slate-100 rounded-xl p-4 bg-white"
+                        <div class="device-card border border-slate-100 rounded-2xl p-5 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-sm hover:shadow-md transition"
                              data-device="{{ $session }}"
                              data-name="{{ $deviceName ?? '' }}"
-                             data-phone="{{ $userId ?? '' }}"
+                             data-phone="{{ $userDisplay ?? '' }}"
                              data-status="{{ $st }}"
                              data-webhook="{{ $cfg['webhookBaseUrl'] ?? '' }}"
                              data-tracking-webhook="{{ $cfg['trackingWebhookBaseUrl'] ?? '' }}"
@@ -171,17 +178,17 @@
                              data-device-status="{{ ($cfg['deviceStatusEnabled'] ?? true) ? '1' : '0' }}">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">📱</div>
+                                    <div class="h-12 w-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg shadow-inner">📱</div>
                                     <div>
-                                        <p class="font-semibold leading-tight">{{ $deviceName ?? $session }}</p>
-                                        <p class="text-xs text-slate-500">#{{ $session }}</p>
-                                        <p class="device-phone text-xs text-slate-500">{{ $userId ?: 'Not linked' }}</p>
+                                        <p class="font-semibold leading-tight text-slate-900">{{ $deviceName ?? $session }}</p>
+                                        <p class="text-xs text-slate-500 font-mono">#{{ $session }}</p>
+                                        <p class="device-phone text-xs text-slate-600 font-mono">{{ $userDisplay }}</p>
+                                        <span class="device-badge inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full border {{ $badgeClass }}">{{ ucfirst($st) }}</span>
                                     </div>
                                 </div>
-                                <span class="device-badge text-xs px-2 py-1 rounded-full border {{ $badgeClass }}">{{ ucfirst($st) }}</span>
                             </div>
 
-                            <div class="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600">
+                            <div class="mt-4 rounded-xl border border-slate-100 bg-white/80 p-3 text-xs text-slate-700 shadow-inner">
                                 <p class="truncate"><span class="text-slate-500">Webhook:</span> <span class="font-mono">{{ $cfg['webhookBaseUrl'] ?? '-' }}</span></p>
                                 <p class="mt-1">
                                     <span class="text-slate-500">Incoming:</span> {{ ($cfg['incomingEnabled'] ?? true) ? 'ON' : 'OFF' }} ·
@@ -189,20 +196,20 @@
                                 </p>
                             </div>
 
-                            <div class="mt-4 flex items-center justify-between">
+                            <div class="mt-5 flex flex-wrap items-center gap-2">
                                 <form method="POST" action="{{ route('sessions.start') }}" class="inline form-connect" data-session="{{ $session }}">
                                     @csrf
                                     <input type="hidden" name="session" value="{{ $session }}">
-                                    <button class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800">Connect / QR</button>
+                                    <button class="h-9 w-9 rounded-lg bg-slate-900 text-white text-sm font-semibold shadow hover:bg-slate-800 flex items-center justify-center" title="Connect / QR" aria-label="Connect / QR">🔗</button>
                                 </form>
 
-                                <div class="flex items-center gap-2">
-                                    <button type="button" class="btn-open-settings px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" data-session="{{ $session }}">Settings</button>
-                                    <form method="POST" action="{{ route('devices.delete', $session) }}" onsubmit="return confirm('Hapus device {{ $session }}?');" class="inline">
-                                        @csrf
-                                        <button class="px-3 py-2 rounded-lg bg-rose-600 text-white text-xs hover:bg-rose-700">Delete</button>
-                                    </form>
-                                </div>
+                                <button type="button" class="btn-open-settings h-9 w-9 rounded-lg border border-amber-200 bg-amber-100 text-sm font-semibold text-amber-800 shadow-sm hover:bg-amber-200/80 flex items-center justify-center" data-session="{{ $session }}" title="Settings" aria-label="Settings">⚙️</button>
+                                <button type="button" class="btn-message-log h-9 w-9 rounded-lg bg-indigo-600 text-white text-sm font-semibold shadow hover:bg-indigo-700 flex items-center justify-center" data-session="{{ $session }}" title="Message Status Log" aria-label="Message Status Log">📑</button>
+                                <button type="button" class="btn-group-finder h-9 w-9 rounded-lg bg-cyan-600 text-white text-sm font-semibold shadow hover:bg-cyan-700 flex items-center justify-center" data-session="{{ $session }}" title="Group ID Finder" aria-label="Group ID Finder">👥</button>
+                                <form method="POST" action="{{ route('devices.delete', $session) }}" onsubmit="return confirm('Hapus device {{ $session }}?');" class="inline">
+                                    @csrf
+                                    <button class="h-9 w-9 rounded-lg bg-rose-600 text-white text-sm font-semibold shadow hover:bg-rose-700 flex items-center justify-center" title="Delete" aria-label="Delete">🗑️</button>
+                                </form>
                             </div>
                         </div>
                     @empty
@@ -214,8 +221,13 @@
             <div class="bg-white shadow rounded-xl p-5 border border-slate-100">
                 <h3 class="text-lg font-semibold mb-2">QR Terbaru</h3>
                 @if($qrData)
+                    @php
+                        $qrSrc = str_starts_with($qrData, 'data:image')
+                            ? $qrData
+                            : 'https://quickchart.io/qr?text=' . urlencode($qrData) . '&size=300';
+                    @endphp
                     <p class="text-sm text-slate-500 mb-2">Session: {{ $qrSession }}</p>
-                    <img class="w-full rounded-lg border border-slate-100" src="https://quickchart.io/qr?text={{ urlencode($qrData) }}&size=300" alt="QR Code">
+                    <img class="w-full rounded-lg border border-slate-100" src="{{ $qrSrc }}" alt="QR Code">
                     <p class="text-xs text-slate-500 mt-2">Scan dengan WhatsApp Anda.</p>
                 @else
                     <p class="text-sm text-slate-500">Belum ada permintaan QR.</p>
@@ -248,13 +260,33 @@
         </div>
     </div>
 
-    <div id="modal-settings" class="fixed inset-0 bg-black/40 hidden items-center justify-center px-4">
-        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg border border-slate-100 p-5">
+    <div id="modal-settings" class="fixed inset-0 bg-black/30 backdrop-blur-sm hidden items-center justify-center px-4">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg border border-slate-100 p-5 max-h-[80vh] overflow-y-auto">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-lg font-semibold">Device Settings</h3>
                 <button type="button" id="btn-close-settings" class="text-slate-500 hover:text-slate-900">✕</button>
             </div>
             <div id="settings-content" class="text-sm text-slate-600">Pilih device untuk mengatur.</div>
+        </div>
+    </div>
+
+    <div id="modal-group-finder" class="fixed inset-0 bg-black/40 hidden items-center justify-center px-4">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg border border-slate-100 p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-semibold">Group ID Finder</h3>
+                <button type="button" id="btn-close-group" class="text-slate-500 hover:text-slate-900">✕</button>
+            </div>
+            <div id="group-finder-content" class="text-sm text-slate-600">Pilih device.</div>
+        </div>
+    </div>
+
+    <div id="modal-message-log" class="fixed inset-0 bg-black/30 backdrop-blur-sm hidden items-center justify-center px-4">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg border border-slate-100 p-5 max-h-[80vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-semibold">Message Status Log</h3>
+                <button type="button" id="btn-close-message-log" class="text-slate-500 hover:text-slate-900">✕</button>
+            </div>
+            <div id="message-log-content" class="text-sm text-slate-600">Pilih device.</div>
         </div>
     </div>
 
@@ -320,6 +352,14 @@
                 apiStatusDetail.className = 'text-xs text-slate-500 mt-1 break-all';
             };
 
+            const lastStatuses = new Map();
+            document.querySelectorAll('.device-card').forEach((card) => {
+                const id = card.getAttribute('data-device');
+                const st = card.getAttribute('data-status') || 'disconnected';
+                if (id) lastStatuses.set(id, st);
+            });
+            let refreshAfterConnect = false;
+
             const applyDeviceStatus = (device) => {
                 const card = document.querySelector(`.device-card[data-device=\"${CSS.escape(device.id)}\"]`);
                 if (!card) return;
@@ -327,6 +367,8 @@
                 const phone = card.querySelector('.device-phone');
 
                 const status = device.status || 'disconnected';
+                const prevStatus = lastStatuses.get(device.id);
+                lastStatuses.set(device.id, status);
                 card.setAttribute('data-status', status);
                 const label = status.charAt(0).toUpperCase() + status.slice(1);
                 if (badge) {
@@ -337,9 +379,20 @@
                     else badge.classList.add('bg-rose-50','text-rose-700','border-rose-200');
                 }
                 if (phone) {
-                    phone.textContent = device.user?.id || 'Not linked';
+                    const clean = (device.user?.id || '').replace(/@.*/, '');
+                    phone.textContent = clean || 'Not linked';
                 }
-                card.setAttribute('data-phone', device.user?.id || '');
+                const cleanPhone = (device.user?.id || '').replace(/@.*/, '');
+                card.setAttribute('data-phone', cleanPhone || '');
+
+                // Notify once when QR is scanned and the device transitions to connected
+                if (!refreshAfterConnect && prevStatus && prevStatus !== 'connected' && status === 'connected') {
+                    refreshAfterConnect = true;
+                    setTimeout(() => {
+                        alert(`Kode QR berhasil discan dan device ${device.id} terhubung. Halaman akan direfresh.`);
+                        window.location.reload();
+                    }, 50);
+                }
             };
 
             const refreshDeviceStatuses = async () => {
@@ -375,6 +428,12 @@
             const modalSettings = document.getElementById('modal-settings');
             const btnCloseSettings = document.getElementById('btn-close-settings');
             const settingsContent = document.getElementById('settings-content');
+            const modalGroup = document.getElementById('modal-group-finder');
+            const btnCloseGroup = document.getElementById('btn-close-group');
+            const groupContent = document.getElementById('group-finder-content');
+            const modalMessageLog = document.getElementById('modal-message-log');
+            const btnCloseMessageLog = document.getElementById('btn-close-message-log');
+            const messageLogContent = document.getElementById('message-log-content');
 
             const show = (el) => el && (el.classList.remove('hidden'), el.classList.add('flex'));
             const hide = (el) => el && (el.classList.add('hidden'), el.classList.remove('flex'));
@@ -382,10 +441,9 @@
             btnCreate?.addEventListener('click', () => show(modalCreate));
             btnCloseCreate?.addEventListener('click', () => hide(modalCreate));
             btnCancelCreate?.addEventListener('click', () => hide(modalCreate));
-            modalCreate?.addEventListener('click', (e) => { if (e.target === modalCreate) hide(modalCreate); });
-
             btnCloseSettings?.addEventListener('click', () => hide(modalSettings));
-            modalSettings?.addEventListener('click', (e) => { if (e.target === modalSettings) hide(modalSettings); });
+            btnCloseGroup?.addEventListener('click', () => hide(modalGroup));
+            btnCloseMessageLog?.addEventListener('click', () => hide(modalMessageLog));
 
             // Connect / QR behavior:
             // - If connected/connecting -> confirm restart and submit to sessions.restart
@@ -495,21 +553,6 @@
                                 <button class=\"px-3 py-2 rounded-lg bg-slate-900 text-white text-sm\">Save</button>
                             </div>
                         </form>
-                        <div class="mt-4 border-t border-slate-100 pt-4">
-                            <div class="flex items-center justify-between">
-                                <h4 class="font-semibold text-slate-900">Group ID Finder</h4>
-                                <button type="button" class="btn-refresh-groups px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" data-session="${encodeURIComponent(session)}">Load</button>
-                            </div>
-                            <p class="text-xs text-slate-500 mt-1">Cari Group ID WhatsApp yang ada di perangkat ini (session harus Connected).</p>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
-                                <input type="text" id="group-search-q" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Cari nama group / group id">
-                                <input type="text" id="group-search-phone" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Cari nomor anggota (628xxx / 08xxx)">
-                            </div>
-                            <div class="flex justify-end gap-2 mt-2">
-                                <button type="button" id="btn-search-groups" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800">Search</button>
-                            </div>
-                            <div id="groups-result" class="mt-3 text-sm text-slate-600">Belum ada data.</div>
-                        </div>
                     `;
 
                     // Prefill tracking/device-status URL from dataset when available
@@ -579,16 +622,46 @@
                         });
                     });
 
-                    // Group lookup (proxy via panel)
-                    const groupsResult = document.getElementById('groups-result');
+                    show(modalSettings);
+                });
+            });
+
+            // Group Finder modal
+            document.querySelectorAll('.btn-group-finder').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const session = btn.getAttribute('data-session');
+                    if (!session || !groupContent) return;
+
+                    groupContent.innerHTML = `
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-slate-500">Group ID Finder</p>
+                                    <p class="font-semibold text-slate-900">${session}</p>
+                                </div>
+                                <button type="button" class="btn-refresh-groups px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" data-session="${encodeURIComponent(session)}">Reload</button>
+                            </div>
+                            <p class="text-xs text-slate-500">Cari Group ID WhatsApp (device harus Connected).</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                <input type="text" class="group-search-q w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Cari nama group / group id">
+                                <input type="text" class="group-search-phone w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Cari nomor anggota (628xxx / 08xxx)">
+                            </div>
+                            <div class="flex justify-end gap-2">
+                                <button type="button" class="btn-search-groups px-3 py-2 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800">Search</button>
+                            </div>
+                            <div class="groups-result mt-2 text-sm text-slate-600">Belum ada data.</div>
+                        </div>
+                    `;
+
+                    const groupsResult = groupContent.querySelector('.groups-result');
                     const loadGroups = async () => {
-                        const qEl = document.getElementById('group-search-q');
-                        const phoneEl = document.getElementById('group-search-phone');
+                        const qEl = groupContent.querySelector('.group-search-q');
+                        const phoneEl = groupContent.querySelector('.group-search-phone');
                         const q = (qEl?.value || '').trim();
                         const phone = (phoneEl?.value || '').trim();
                         if (groupsResult) {
                             groupsResult.textContent = 'Loading...';
-                            groupsResult.className = 'mt-3 text-sm text-slate-500';
+                            groupsResult.className = 'groups-result mt-2 text-sm text-slate-500';
                         }
                         try {
                             const url = new URL(`${sessionsBaseUrl}/${encodeURIComponent(session)}/groups`, window.location.origin);
@@ -601,10 +674,10 @@
                             if (!groupsResult) return;
                             if (groups.length === 0) {
                                 groupsResult.textContent = 'Tidak ada group ditemukan.';
-                                groupsResult.className = 'mt-3 text-sm text-amber-700';
+                                groupsResult.className = 'groups-result mt-2 text-sm text-amber-700';
                                 return;
                             }
-                            groupsResult.className = 'mt-3 text-sm text-slate-600';
+                            groupsResult.className = 'groups-result mt-2 text-sm text-slate-600';
                             groupsResult.innerHTML = `
                                 <div class="space-y-2">
                                     ${groups.map((g) => {
@@ -626,31 +699,114 @@
                                 </div>
                             `;
 
-                            groupsResult.querySelectorAll('.btn-copy-groupid').forEach((btn) => {
-                                btn.addEventListener('click', async () => {
-                                    const gid = btn.getAttribute('data-group-id') || '';
+                            groupsResult.querySelectorAll('.btn-copy-groupid').forEach((btnCopy) => {
+                                btnCopy.addEventListener('click', async () => {
+                                    const gid = btnCopy.getAttribute('data-group-id') || '';
                                     if (!gid) return;
                                     try {
                                         await navigator.clipboard.writeText(gid);
-                                        btn.textContent = 'Copied';
-                                        setTimeout(() => (btn.textContent = 'Copy ID'), 1000);
+                                        btnCopy.textContent = 'Copied';
+                                        setTimeout(() => (btnCopy.textContent = 'Copy ID'), 1000);
                                     } catch {
-                                        btn.textContent = 'Copy failed';
-                                        setTimeout(() => (btn.textContent = 'Copy ID'), 1200);
+                                        btnCopy.textContent = 'Copy failed';
+                                        setTimeout(() => (btnCopy.textContent = 'Copy ID'), 1200);
                                     }
                                 });
                             });
                         } catch (err) {
                             if (!groupsResult) return;
                             groupsResult.textContent = 'Gagal memuat group. Pastikan device sudah Connected.';
-                            groupsResult.className = 'mt-3 text-sm text-rose-700';
+                            groupsResult.className = 'groups-result mt-2 text-sm text-rose-700';
                         }
                     };
 
-                    settingsContent.querySelector('.btn-refresh-groups')?.addEventListener('click', loadGroups);
-                    document.getElementById('btn-search-groups')?.addEventListener('click', loadGroups);
+                    groupContent.querySelector('.btn-refresh-groups')?.addEventListener('click', loadGroups);
+                    groupContent.querySelector('.btn-search-groups')?.addEventListener('click', loadGroups);
 
-                    show(modalSettings);
+                    show(modalGroup);
+                });
+            });
+
+            // Message log modal
+            document.querySelectorAll('.btn-message-log').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const session = btn.getAttribute('data-session');
+                    if (!session || !messageLogContent) return;
+
+                    messageLogContent.innerHTML = `
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-slate-500">Message Status Log</p>
+                                    <p class="font-semibold text-slate-900">${session}</p>
+                                </div>
+                                <button type="button" class="btn-refresh-log px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" data-session="${encodeURIComponent(session)}">Reload</button>
+                            </div>
+                            <div class="log-result mt-2 text-sm text-slate-600">Loading...</div>
+                        </div>
+                    `;
+
+                    const logResult = messageLogContent.querySelector('.log-result');
+                    const loadLog = async () => {
+                        if (logResult) {
+                            logResult.textContent = 'Loading...';
+                            logResult.className = 'log-result mt-2 text-sm text-slate-500';
+                        }
+                        try {
+                            const url = `${sessionsBaseUrl}/${encodeURIComponent(session)}/message-status`;
+                            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                            const data = await res.json().catch(() => ({}));
+                            if (!data.ok) throw new Error(data.message || 'Failed');
+                            const items = Array.isArray(data.data) ? data.data : [];
+                            if (!logResult) return;
+                            if (items.length === 0) {
+                                logResult.textContent = 'Belum ada log status.';
+                                logResult.className = 'log-result mt-2 text-sm text-amber-700';
+                                return;
+                            }
+                            logResult.className = 'log-result mt-2 text-sm text-slate-600 overflow-x-auto';
+                            logResult.innerHTML = `
+                                <table class="min-w-full text-xs border border-slate-100 rounded-lg overflow-hidden">
+                                    <thead class="bg-slate-100 text-slate-700">
+                                        <tr>
+                                            <th class="px-2 py-2 text-left">Message ID</th>
+                                            <th class="px-2 py-2 text-left">Status</th>
+                                            <th class="px-2 py-2 text-left">Updated</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${items.map((item) => {
+                                            const status = (item.status || '').toString();
+                                            const ts = item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '-';
+                                            const id = (item.id || '').toString();
+                                            const badgeClass = status === 'delivered' || status === 'read' || status === 'sent'
+                                                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                                : status === 'pending'
+                                                ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                                : 'bg-rose-100 text-rose-800 border-rose-200';
+                                            return `
+                                                <tr class="border-t border-slate-100">
+                                                    <td class="px-2 py-2 font-mono break-all">${id}</td>
+                                                    <td class="px-2 py-2">
+                                                        <span class="text-[11px] px-2 py-0.5 rounded-full border ${badgeClass}">${status || '-'}</span>
+                                                    </td>
+                                                    <td class="px-2 py-2 text-slate-500">${ts}</td>
+                                                </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            `;
+                        } catch (err) {
+                            if (!logResult) return;
+                            logResult.textContent = 'Gagal memuat log status.';
+                            logResult.className = 'log-result mt-2 text-sm text-rose-700';
+                        }
+                    };
+
+                    messageLogContent.querySelector('.btn-refresh-log')?.addEventListener('click', loadLog);
+                    loadLog();
+                    show(modalMessageLog);
                 });
             });
 

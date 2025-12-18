@@ -4,7 +4,7 @@ import { requestValidator } from "../middlewares/validation.middleware";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
 import { whatsapp } from "../whatsapp";
-import { getMessageStatus } from "../status-store";
+import { getMessageStatus, listMessageStatuses } from "../status-store";
 
 export const createMessageController = () => {
   const sendMessageSchema = z.object({
@@ -41,6 +41,27 @@ export const createMessageController = () => {
           });
         }
         return c.json({ data: record });
+      }
+    )
+    /**
+     *
+     * GET /message/log
+     *
+     * List message status records for a session.
+     */
+    .get(
+      "/log",
+      createKeyMiddleware(),
+      requestValidator(
+        "query",
+        z.object({
+          session: z.string(),
+        })
+      ),
+      async (c) => {
+        const payload = c.req.valid("query");
+        const data = listMessageStatuses(payload.session);
+        return c.json({ data });
       }
     )
     /**

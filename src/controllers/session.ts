@@ -143,8 +143,11 @@ export const createSessionController = () => {
         });
 
         if (qr) {
+          const qrImage = await toDataURL(qr);
           return c.json({
-            qr: qr,
+            qr,
+            qr_image: qrImage,
+            qrImage,
           });
         }
 

@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { waCredentialsDir } from "./wa-credentials";
 
 export type SessionWebhookConfig = {
   webhookBaseUrl?: string;
@@ -12,10 +13,7 @@ export type SessionWebhookConfig = {
   deviceStatusEnabled?: boolean;
 };
 
-const configPath = path.resolve(
-  process.cwd(),
-  "wa_credentials/session-config.json"
-);
+const configPath = path.join(waCredentialsDir, "session-config.json");
 
 const readAll = async (): Promise<Record<string, SessionWebhookConfig>> => {
   try {

@@ -4,6 +4,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
+import { toDataURL } from "qrcode";
 import { requestValidator } from "../middlewares/validation.middleware";
 import { createKeyMiddleware } from "../middlewares/key.middleware";
 import { whatsapp } from "../whatsapp";
@@ -124,6 +125,8 @@ const createWaGatewayDeviceRouter = () => {
         });
       });
 
+      const qrImage = qr ? await toDataURL(qr) : null;
+
       return c.json({
         status: true,
         message: "create device successfully",
@@ -132,6 +135,7 @@ const createWaGatewayDeviceRouter = () => {
           device: sessionId,
           token,
           qr,
+          qr_image: qrImage,
         },
       });
     }
@@ -197,12 +201,15 @@ const createWaGatewayDeviceRouter = () => {
       });
     });
 
+    const qrImage = qr ? await toDataURL(qr) : null;
+
     return c.json({
       status: true,
       message: "Success",
       data: {
         device: sessionId,
         qr,
+        qr_image: qrImage,
       },
     });
   });

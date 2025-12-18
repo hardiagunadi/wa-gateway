@@ -95,6 +95,17 @@ class GatewayService
         return $response->json() ?? [];
     }
 
+    public function listMessageStatuses(string $session): array
+    {
+        $response = $this->client()->get('/message/log', [
+            'session' => $session,
+        ]);
+        $response->throw();
+
+        $data = $response->json('data');
+        return is_array($data) ? $data : [];
+    }
+
     public function health(): ?array
     {
         try {

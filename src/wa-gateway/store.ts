@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
+import { ensureWaCredentialsDir, waCredentialsDir } from "../wa-credentials";
 
 export type WaGatewayContact = {
   phone: string;
@@ -49,13 +50,12 @@ export type WaGatewayScheduleRecord = {
   updatedAt: string;
 };
 
-const rootDir = path.resolve(process.cwd(), "wa_credentials");
-const contactsPath = path.join(rootDir, "wa-gateway-contacts.json");
-const autoreplyPath = path.join(rootDir, "wa-gateway-autoreply.json");
-const schedulesPath = path.join(rootDir, "wa-gateway-schedules.json");
+const contactsPath = path.join(waCredentialsDir, "wa-gateway-contacts.json");
+const autoreplyPath = path.join(waCredentialsDir, "wa-gateway-autoreply.json");
+const schedulesPath = path.join(waCredentialsDir, "wa-gateway-schedules.json");
 
 async function ensureDir() {
-  await fs.mkdir(rootDir, { recursive: true });
+  await ensureWaCredentialsDir();
 }
 
 async function readJson<T>(file: string, fallback: T): Promise<T> {

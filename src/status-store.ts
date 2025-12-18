@@ -19,3 +19,11 @@ export const getMessageStatus = (session: string, id: string) => {
   return statusStore.get(makeKey(session, id)) ?? null;
 };
 
+export const listMessageStatuses = (session: string) => {
+  const all = Array.from(statusStore.values()).filter(
+    (r) => r.session === session
+  );
+  return all.sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
+};

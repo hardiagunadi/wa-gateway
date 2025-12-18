@@ -1,8 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
+import { ensureWaCredentialsDir, waCredentialsDir } from "./wa-credentials";
 
-const rootDir = path.resolve(__dirname, "..");
-const storePath = path.join(rootDir, "wa_credentials", "sessions.json");
+const storePath = path.join(waCredentialsDir, "sessions.json");
 
 async function readAll(): Promise<string[]> {
   try {
@@ -18,7 +18,7 @@ async function readAll(): Promise<string[]> {
 }
 
 async function writeAll(ids: string[]) {
-  await fs.mkdir(path.dirname(storePath), { recursive: true });
+  await ensureWaCredentialsDir();
   const unique = Array.from(new Set(ids.map((s) => String(s).trim()))).filter(
     Boolean
   );
@@ -44,4 +44,3 @@ export const removeStoredSession = async (sessionId: string) => {
   const all = await readAll();
   await writeAll(all.filter((s) => s !== id));
 };
-

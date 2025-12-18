@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
+import { ensureWaCredentialsDir, waCredentialsDir } from "../wa-credentials";
 
 export type DeviceRecord = {
   token: string;
@@ -12,15 +13,7 @@ export type DeviceRecord = {
   createdAt: string;
 };
 
-// Anchor credentials directory to project root (or override via env) so lookups don't depend on cwd.
-const rootDir = process.env.WA_CREDENTIALS_DIR
-  ? path.resolve(process.env.WA_CREDENTIALS_DIR)
-  : path.resolve(__dirname, "../../wa_credentials");
-const devicesPath = path.join(rootDir, "device-registry.json");
-
-async function ensureDir() {
-  await fs.mkdir(rootDir, { recursive: true });
-}
+const devicesPath = path.join(waCredentialsDir, "device-registry.json");
 
 async function readJson<T>(file: string, fallback: T): Promise<T> {
   try {
@@ -32,7 +25,7 @@ async function readJson<T>(file: string, fallback: T): Promise<T> {
 }
 
 async function writeJson<T>(file: string, value: T) {
-  await ensureDir();
+  await ensureWaCredentialsDir();
   await fs.writeFile(file, JSON.stringify(value, null, 2));
 }
 

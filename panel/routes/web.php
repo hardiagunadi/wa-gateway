@@ -22,6 +22,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/sessions/{session}/config', [GatewayController::class, 'saveSessionConfig'])->name('sessions.config');
     Route::post('/sessions/{session}/webhook-test', [GatewayController::class, 'webhookTest'])->name('sessions.webhook_test');
     Route::get('/sessions/{session}/groups', [GatewayController::class, 'listGroups'])->name('sessions.groups');
+    Route::get('/sessions/{session}/message-status', [GatewayController::class, 'messageStatuses'])->name('sessions.message_status');
     Route::post('/devices', [GatewayController::class, 'createDevice'])->name('devices.create');
     Route::post('/devices/{device}/delete', [GatewayController::class, 'deleteDevice'])->name('devices.delete');
     Route::get('/devices/status', [GatewayController::class, 'deviceStatus'])->name('devices.status');
