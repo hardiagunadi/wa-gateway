@@ -10,6 +10,7 @@ import {
   listStoredSessions,
   removeStoredSession,
 } from "../session-store";
+import { ensureDeviceRegistryForSession } from "../wa-gateway/registry";
 
 export const createSessionController = () => {
   const startSessionSchema = z.object({
@@ -123,6 +124,7 @@ export const createSessionController = () => {
         const payload = c.req.valid("json");
 
         await addStoredSession(payload.session);
+        await ensureDeviceRegistryForSession(payload.session);
 
         const isExist = await whatsapp.getSessionById(payload.session);
         if (isExist) {
@@ -172,6 +174,7 @@ export const createSessionController = () => {
         const payload = c.req.valid("query");
 
         await addStoredSession(payload.session);
+        await ensureDeviceRegistryForSession(payload.session);
 
         const isExist = await whatsapp.getSessionById(payload.session);
         if (isExist) {

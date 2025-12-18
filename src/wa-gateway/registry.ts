@@ -2,6 +2,8 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { ensureWaCredentialsDir, waCredentialsDir } from "../wa-credentials";
+import { getSessionWebhookConfig } from "../session-config";
+import { listStoredSessions } from "../session-store";
 
 export type DeviceRecord = {
   token: string;
@@ -70,6 +72,57 @@ export const deleteDeviceBySessionId = async (sessionId: string) => {
     devicesPath,
     devices.filter((d) => d.sessionId !== sessionId)
   );
+};
+
+const clean = (value?: string | null) => {
+  const trimmed = (value || "").trim();
+  return trimmed || undefined;
+};
+
+export const ensureDeviceRegistryForSession = async (
+  sessionId: string
+): Promise<DeviceRecord | null> => {
+  const session = clean(sessionId);
+  if (!session) return null;
+
+  const existing = await getDeviceBySessionId(session);
+  const config = await getSessionWebhookConfig(session);
+
+  const record: DeviceRecord = existing || {
+    token: clean(config.apiKey) || session,
+    sessionId: session,
+    createdAt: new Date().toISOString(),
+  };
+
+  const name = clean((config as any).deviceName);
+  const webhookUrl = clean(config.webhookBaseUrl);
+  const trackingBaseUrl = clean(config.trackingWebhookBaseUrl);
+
+  const next: DeviceRecord = {
+    ...record,
+    name: name ?? record.name,
+    webhookUrl: webhookUrl ?? record.webhookUrl,
+    trackingBaseUrl: trackingBaseUrl ?? record.trackingBaseUrl,
+  };
+
+  const shouldUpdate =
+    !existing ||
+    existing.name !== next.name ||
+    existing.webhookUrl !== next.webhookUrl ||
+    existing.trackingBaseUrl !== next.trackingBaseUrl;
+
+  if (shouldUpdate) {
+    await upsertDevice(next);
+  }
+
+  return next;
+};
+
+export const syncDeviceRegistryWithStoredSessions = async () => {
+  const sessions = await listStoredSessions().catch(() => []);
+  for (const sessionId of sessions) {
+    await ensureDeviceRegistryForSession(sessionId);
+  }
 };
 
 export const generateToken = () => {

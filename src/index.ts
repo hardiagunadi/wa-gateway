@@ -17,6 +17,7 @@ import {
   createWaGatewayCompatV2Controller,
 } from "./controllers/wa-gateway";
 import { startWaGatewayScheduler } from "./wa-gateway/scheduler";
+import { syncDeviceRegistryWithStoredSessions } from "./wa-gateway/registry";
 
 const app = new Hono();
 
@@ -68,6 +69,10 @@ app.route("/", createGroupController());
  */
 app.route("/", createWaGatewayCompatController());
 app.route("/", createWaGatewayCompatV2Controller());
+
+syncDeviceRegistryWithStoredSessions().catch((err) =>
+  console.error("Failed to sync device registry", err)
+);
 
 const port = env.PORT;
 

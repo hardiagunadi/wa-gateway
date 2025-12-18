@@ -3,6 +3,7 @@ import path from "path";
 import { waCredentialsDir } from "./wa-credentials";
 
 export type SessionWebhookConfig = {
+  deviceName?: string;
   webhookBaseUrl?: string;
   trackingWebhookBaseUrl?: string;
   deviceStatusWebhookBaseUrl?: string;
@@ -40,6 +41,10 @@ export const getSessionWebhookConfig = async (
   const cfg = all[sessionId] ?? {};
 
   return {
+    deviceName:
+      typeof (cfg as any).deviceName === "string"
+        ? (cfg as any).deviceName
+        : undefined,
     webhookBaseUrl: cfg.webhookBaseUrl,
     trackingWebhookBaseUrl: cfg.trackingWebhookBaseUrl,
     deviceStatusWebhookBaseUrl: cfg.deviceStatusWebhookBaseUrl,
