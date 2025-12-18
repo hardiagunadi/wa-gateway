@@ -11,6 +11,11 @@ export type SessionWebhookConfig = {
   autoReplyEnabled?: boolean;
   trackingEnabled?: boolean;
   deviceStatusEnabled?: boolean;
+  /**
+   * Optional lintasku/topsetting compatibility webhook.
+   * When set, wa-gateway will POST a lintasku-style payload in addition to the normal payload.
+   */
+  lintaskuCompatWebhookUrl?: string;
 };
 
 const configPath = path.join(waCredentialsDir, "session-config.json");
@@ -43,5 +48,6 @@ export const getSessionWebhookConfig = async (
     autoReplyEnabled: cfg.autoReplyEnabled ?? false,
     trackingEnabled: cfg.trackingEnabled ?? true,
     deviceStatusEnabled: cfg.deviceStatusEnabled ?? true,
+    lintaskuCompatWebhookUrl: cfg.lintaskuCompatWebhookUrl,
   };
 };

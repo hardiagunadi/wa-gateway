@@ -113,6 +113,23 @@ async function onIncomingMessage(message: MessageReceived) {
     }
   }
 
+  const lintaskuCompatUrl = config.lintaskuCompatWebhookUrl?.trim();
+  if (lintaskuCompatUrl) {
+    const compatClient = createWebhookClient(config.apiKey);
+    compatClient
+      .post(lintaskuCompatUrl, {
+        message: payload.message,
+        receiver: payload.from,
+        message_status: "received",
+        quota: null,
+        // keep extra context for clients that might need it
+        session: payload.session,
+        sender: payload.sender,
+        isGroup: payload.isGroup,
+      })
+      .catch(console.error);
+  }
+
   // wa-gateway-compatible autoreply rules (token-scoped).
   // Only apply when webhook auto-reply is disabled to avoid double replies.
   if (!config.autoReplyEnabled && incomingText && message.key.remoteJid) {

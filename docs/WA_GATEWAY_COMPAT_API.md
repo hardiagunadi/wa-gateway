@@ -138,6 +138,36 @@ Fields (form):
 Catatan:
 - `Authorization: {token}.{secret_key}` diterima, tetapi **secret_key diabaikan**. Anda cukup kirim `Authorization: {token}`.
 - Semua endpoint V2 menggunakan device/session berdasarkan token (1 token → 1 device/session).
+- Webhook bawaan tetap memakai payload standar `wa-gateway`, tetapi tersedia opsi **compat** untuk beberapa platform.
+
+### Webhook compat lintasku/topsetting
+
+Jika Anda ingin menerima webhook masuk dengan format sederhana seperti yang ditampilkan dashboard `https://lintasku.topsetting.com/billing/webhook.php` (field `message`, `receiver`, `message status`, `quota`), tambahkan konfigurasi berikut di `wa_credentials/session-config.json` untuk session terkait:
+
+```json
+{
+  "<sessionId>": {
+    "webhookBaseUrl": "https://server-anda.com/webhook",
+    "lintaskuCompatWebhookUrl": "https://lintasku.topsetting.com/billing/webhook.php"
+  }
+}
+```
+
+Setiap pesan masuk akan tetap dikirim ke `webhookBaseUrl` dengan payload standar, **dan tambahan POST** ke `lintaskuCompatWebhookUrl` dengan payload:
+
+```json
+{
+  "message": "teks pesan atau caption",
+  "receiver": "628xxx@s.whatsapp.net",   // JID pengirim WhatsApp
+  "message_status": "received",
+  "quota": null,
+  "session": "session-id-device",
+  "sender": "628xxx@s.whatsapp.net",
+  "isGroup": false
+}
+```
+
+Opsi ini tidak mengubah atau menonaktifkan webhook lain yang sudah berjalan.
 
 ### POST `/api/v2/send-message`
 Content-Type: `application/json`
