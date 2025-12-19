@@ -448,6 +448,61 @@ REGISTRY_PASS=secret</code></pre>
       <p class="small">Jika tidak di-set, endpoint terbuka (tidak disarankan untuk server publik).</p>
     </section>
 
+    <section id="export-env" class="card">
+      <div class="section-title"><span></span><h2>Ekspor token ke .env</h2></div>
+      <p>Jika aplikasi lain membaca token lewat env (mis. <code>WA_GATEWAY_TOKEN</code>), ambil dari <code>wa_credentials/device-registry.json</code> dan tulis ke <code>.env</code>. Pilih skenario:</p>
+      <h4>Satu VPS, beda folder</h4>
+      <p>Contoh: wa-gateway di <code>/var/www/wa</code>, app lain di <code>/var/www/beta/.env</code>.</p>
+      <pre><code class="language-bash">#!/usr/bin/env bash
+set -euo pipefail
+WA_DIR="/var/www/wa"
+BETA_ENV="/var/www/beta/.env"
+SESSION_ID="" # isi jika mau session tertentu
+REG="$WA_DIR/wa_credentials/device-registry.json"
+token=$(node - <<'NODE'
+const fs=require('fs');
+const path=process.env.REG_PATH;
+const sid=process.env.SESSION_ID||"";
+const list=JSON.parse(fs.readFileSync(path,'utf8'));
+const pick=sid?(list.find(r=>r.sessionId===sid)||{}):(Array.isArray(list)?list[0]||{}:{});
+const t=pick.token||pick.apiKey||"";
+if(!t) throw new Error("Token not found");
+console.log(t);
+NODE
+REG_PATH="$REG" SESSION_ID="$SESSION_ID")
+tmp=$(mktemp)
+grep -v '^WA_GATEWAY_TOKEN=' "$BETA_ENV" 2>/dev/null || true >"$tmp"
+echo "WA_GATEWAY_TOKEN=$token" >>"$tmp"
+mv "$tmp" "$BETA_ENV"
+echo "Updated $BETA_ENV with WA_GATEWAY_TOKEN=$token"</code></pre>
+      <p><strong>Jalankan:</strong> simpan sebagai <code>sync-token-env.sh</code>, <code>chmod +x sync-token-env.sh</code>, lalu <code>./sync-token-env.sh</code>. Sesuaikan path/SESSION_ID.</p>
+      <p class="small">Contoh kasus: setelah update <code>apiKey</code> session <code>6285158663803</code>, jalankan script agar <code>.env</code> app lain ikut terisi token baru.</p>
+      <h4>Dua VPS (wa.watumalang.online → beta.watumalang.online)</h4>
+      <p>Ambil token via SSH dari host wa-gateway, tulis ke <code>.env</code> di host lain.</p>
+      <pre><code class="language-bash">#!/usr/bin/env bash
+set -euo pipefail
+WA_HOST="deploy@wa.watumalang.online"
+BETA_HOST="deploy@beta.watumalang.online"
+WA_DIR="/var/www/wa"
+BETA_ENV="/var/www/beta/.env"
+SESSION_ID=""
+token=$(ssh "$WA_HOST" "REG='$WA_DIR/wa_credentials/device-registry.json'; node -e \"
+const fs=require('fs');
+const list=JSON.parse(fs.readFileSync(process.env.REG,'utf8'));
+const sid='${SESSION_ID}';
+const pick=sid?(list.find(r=>r.sessionId===sid)||{}):(Array.isArray(list)?list[0]||{}:{});
+const t=pick.token||pick.apiKey||'';
+if(!t) throw new Error('Token not found');
+console.log(t);
+\"")
+ssh "$BETA_HOST" "tmp=\$(mktemp); \
+  grep -v '^WA_GATEWAY_TOKEN=' '$BETA_ENV' 2>/dev/null || true >\$tmp; \
+  echo 'WA_GATEWAY_TOKEN=$token' >>\$tmp; \
+  mv \$tmp '$BETA_ENV'; \
+  echo 'Updated $BETA_ENV'"</code></pre>
+      <p><strong>Jalankan:</strong> simpan sebagai <code>sync-token-remote.sh</code>, <code>chmod +x</code>, lalu <code>./sync-token-remote.sh</code> dari mesin yang bisa SSH ke kedua host. Sesuaikan host, path, dan SESSION_ID.</p>
+    </section>
+
     <section id="webhook" class="card">
       <div class="section-title"><span></span><h2>Webhook (opsional)</h2></div>
       <p>Set <code>WEBHOOK_BASE_URL</code> di <span class="kbd">.env</span> untuk menerima event real-time.</p>
