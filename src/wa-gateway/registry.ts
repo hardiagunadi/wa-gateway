@@ -104,11 +104,10 @@ export const ensureDeviceRegistryForSession = async (
   const existing = await getDeviceBySessionId(session);
   const config = await getSessionWebhookConfig(session);
 
-  const configuredToken =
-    clean(config.apiKey) || clean(process.env.WA_GATEWAY_TOKEN);
+  const configuredToken = clean(config.apiKey);
 
   const record: DeviceRecord = {
-    token: configuredToken || existing?.token || session,
+    token: configuredToken ?? "",
     sessionId: session,
     createdAt: existing?.createdAt || new Date().toISOString(),
     name: existing?.name,
@@ -123,6 +122,7 @@ export const ensureDeviceRegistryForSession = async (
 
   const next: DeviceRecord = {
     ...record,
+    token: configuredToken ?? "",
     name: name ?? record.name,
     webhookUrl: webhookUrl ?? record.webhookUrl,
     trackingBaseUrl: trackingBaseUrl ?? record.trackingBaseUrl,
