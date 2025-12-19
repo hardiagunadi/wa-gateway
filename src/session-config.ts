@@ -19,11 +19,14 @@ export type SessionWebhookConfig = {
   lintaskuCompatWebhookUrl?: string;
 };
 
-const configPath = path.join(waCredentialsDir, "session-config.json");
+export const sessionConfigPath = path.join(
+  waCredentialsDir,
+  "session-config.json"
+);
 
 const readAll = async (): Promise<Record<string, SessionWebhookConfig>> => {
   try {
-    const raw = await fs.readFile(configPath, "utf-8");
+    const raw = await fs.readFile(sessionConfigPath, "utf-8");
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object") {
       return parsed as Record<string, SessionWebhookConfig>;
@@ -34,25 +37,39 @@ const readAll = async (): Promise<Record<string, SessionWebhookConfig>> => {
   }
 };
 
+const normalizeConfig = (cfg: any): SessionWebhookConfig => ({
+  deviceName: typeof cfg?.deviceName === "string" ? cfg.deviceName : undefined,
+  webhookBaseUrl: cfg?.webhookBaseUrl,
+  trackingWebhookBaseUrl: cfg?.trackingWebhookBaseUrl,
+  deviceStatusWebhookBaseUrl: cfg?.deviceStatusWebhookBaseUrl,
+  apiKey: cfg?.apiKey,
+  incomingEnabled: cfg?.incomingEnabled ?? true,
+  autoReplyEnabled: cfg?.autoReplyEnabled ?? false,
+  trackingEnabled: cfg?.trackingEnabled ?? true,
+  deviceStatusEnabled: cfg?.deviceStatusEnabled ?? true,
+  lintaskuCompatWebhookUrl: cfg?.lintaskuCompatWebhookUrl,
+});
+
 export const getSessionWebhookConfig = async (
   sessionId: string
 ): Promise<SessionWebhookConfig> => {
   const all = await readAll();
   const cfg = all[sessionId] ?? {};
 
-  return {
-    deviceName:
-      typeof (cfg as any).deviceName === "string"
-        ? (cfg as any).deviceName
-        : undefined,
-    webhookBaseUrl: cfg.webhookBaseUrl,
-    trackingWebhookBaseUrl: cfg.trackingWebhookBaseUrl,
-    deviceStatusWebhookBaseUrl: cfg.deviceStatusWebhookBaseUrl,
-    apiKey: cfg.apiKey,
-    incomingEnabled: cfg.incomingEnabled ?? true,
-    autoReplyEnabled: cfg.autoReplyEnabled ?? false,
-    trackingEnabled: cfg.trackingEnabled ?? true,
-    deviceStatusEnabled: cfg.deviceStatusEnabled ?? true,
-    lintaskuCompatWebhookUrl: cfg.lintaskuCompatWebhookUrl,
-  };
+  return normalizeConfig(cfg);
+};
+
+export const listSessionWebhookConfigs = async (): Promise<
+  Record<string, SessionWebhookConfig>
+> => {
+  const all = await readAll();
+  const normalized: Record<string, SessionWebhookConfig> = {};
+
+  for (const [sessionId, cfg] of Object.entries(all)) {
+    const id = String(sessionId || "").trim();
+    if (!id) continue;
+    normalized[id] = normalizeConfig(cfg);
+  }
+
+  return normalized;
 };

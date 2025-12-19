@@ -106,6 +106,7 @@ const createWaGatewayDeviceRouter = () => {
 
       await upsertDevice({
         token,
+        apiKey: token,
         sessionId,
         name: payload.name,
         phone: payload.phone,
@@ -170,6 +171,7 @@ const createWaGatewayDeviceRouter = () => {
 
       await upsertDevice({
         token,
+        apiKey: token,
         sessionId,
         name: payload.name,
         phone: payload.phone,
