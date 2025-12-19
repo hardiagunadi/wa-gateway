@@ -1,5 +1,6 @@
 import { HTTPException } from "hono/http-exception";
 import { whatsapp } from "../whatsapp";
+import { recordOutgoingMessage } from "../status-store";
 
 export const truthy = (value: unknown) => {
   if (typeof value === "boolean") return value;
@@ -38,12 +39,20 @@ export const sendV2Text = async (props: {
   message: string;
   isGroup?: unknown;
 }) => {
-  return whatsapp.sendText({
+  const res = await whatsapp.sendText({
     sessionId: props.sessionId,
     to: normalizeGroupId(props.phone),
     text: props.message,
     isGroup: truthy(props.isGroup),
   });
+  recordOutgoingMessage({
+    session: props.sessionId,
+    id: (res as any)?.key?.id,
+    to: props.phone,
+    preview: props.message,
+    category: "text",
+  });
+  return res;
 };
 
 export const sendV2Image = async (props: {
@@ -53,13 +62,21 @@ export const sendV2Image = async (props: {
   caption?: string;
   isGroup?: unknown;
 }) => {
-  return whatsapp.sendImage({
+  const res = await whatsapp.sendImage({
     sessionId: props.sessionId,
     to: normalizeGroupId(props.phone),
     media: props.image,
     text: props.caption,
     isGroup: truthy(props.isGroup),
   });
+  recordOutgoingMessage({
+    session: props.sessionId,
+    id: (res as any)?.key?.id,
+    to: props.phone,
+    preview: props.caption || "[image]",
+    category: "image",
+  });
+  return res;
 };
 
 export const sendV2Video = async (props: {
@@ -69,13 +86,21 @@ export const sendV2Video = async (props: {
   caption?: string;
   isGroup?: unknown;
 }) => {
-  return whatsapp.sendVideo({
+  const res = await whatsapp.sendVideo({
     sessionId: props.sessionId,
     to: normalizeGroupId(props.phone),
     media: props.video,
     text: props.caption,
     isGroup: truthy(props.isGroup),
   });
+  recordOutgoingMessage({
+    session: props.sessionId,
+    id: (res as any)?.key?.id,
+    to: props.phone,
+    preview: props.caption || "[video]",
+    category: "video",
+  });
+  return res;
 };
 
 export const sendV2Document = async (props: {
@@ -86,7 +111,7 @@ export const sendV2Document = async (props: {
   caption?: string;
   isGroup?: unknown;
 }) => {
-  return whatsapp.sendDocument({
+  const res = await whatsapp.sendDocument({
     sessionId: props.sessionId,
     to: normalizeGroupId(props.phone),
     media: props.document,
@@ -94,6 +119,14 @@ export const sendV2Document = async (props: {
     text: props.caption,
     isGroup: truthy(props.isGroup),
   });
+  recordOutgoingMessage({
+    session: props.sessionId,
+    id: (res as any)?.key?.id,
+    to: props.phone,
+    preview: props.caption || props.document || "[document]",
+    category: "document",
+  });
+  return res;
 };
 
 export const sendV2Audio = async (props: {
@@ -103,13 +136,21 @@ export const sendV2Audio = async (props: {
   ptt?: unknown;
   isGroup?: unknown;
 }) => {
-  return whatsapp.sendAudio({
+  const res = await whatsapp.sendAudio({
     sessionId: props.sessionId,
     to: normalizeGroupId(props.phone),
     media: props.audio,
     asVoiceNote: truthy(props.ptt),
     isGroup: truthy(props.isGroup),
   } as any);
+  recordOutgoingMessage({
+    session: props.sessionId,
+    id: (res as any)?.key?.id,
+    to: props.phone,
+    preview: "[audio]",
+    category: "audio",
+  });
+  return res;
 };
 
 export const sendV2Link = async (props: {
@@ -143,7 +184,7 @@ export const sendV2Location = async (props: {
 }) => {
   const sock = await getSockReadyOrThrow(props.sessionId);
   const jid = normalizeGroupId(props.phone);
-  return sock.sendMessage(jid, {
+  const res = await sock.sendMessage(jid, {
     location: {
       degreesLatitude: Number(props.message.latitude),
       degreesLongitude: Number(props.message.longitude),
@@ -151,6 +192,17 @@ export const sendV2Location = async (props: {
       address: props.message.address,
     },
   });
+  recordOutgoingMessage({
+    session: props.sessionId,
+    id: (res as any)?.key?.id,
+    to: props.phone,
+    preview:
+      props.message.name ||
+      props.message.address ||
+      `[location ${props.message.latitude},${props.message.longitude}]`,
+    category: "location",
+  });
+  return res;
 };
 
 export const sendV2List = async (props: {
@@ -179,12 +231,19 @@ export const sendV2List = async (props: {
     },
   ];
 
-  return sock.sendMessage(jid, {
+  const res = await sock.sendMessage(jid, {
     text: props.message.description || "",
     footer: props.message.footer || "",
     title: props.message.title || "",
     buttonText: props.message.buttonText || "Select",
     sections,
   });
+  recordOutgoingMessage({
+    session: props.sessionId,
+    id: (res as any)?.key?.id,
+    to: props.phone,
+    preview: props.message.description || "[list]",
+    category: "list",
+  });
+  return res;
 };
-

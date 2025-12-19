@@ -4,64 +4,110 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WA Gateway Panel</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css">
+    <style>
+        body {
+            background: radial-gradient(circle at 20% 20%, #e3f2fd 0, transparent 25%),
+                        radial-gradient(circle at 80% 0%, #f3e8ff 0, transparent 20%),
+                        #f5f6fa;
+        }
+        html, body { min-height: 100%; }
+        .content-wrapper { min-height: 100vh; }
+        .device-card {
+            transition: transform .15s ease, box-shadow .15s ease;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            border: 1px solid #e5e7eb;
+        }
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+        }
+        .hidden { display: none !important; }
+        .badge-pill {
+            border-radius: 999px;
+            font-size: 11px;
+            padding: 4px 10px;
+        }
+        .modal-content {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .modal-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .gap-2 { gap: .5rem; }
+        .gap-3 { gap: .75rem; }
+    </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-    <div class="max-w-6xl mx-auto px-6 py-10">
-        <header class="mb-8 flex items-center justify-between">
-            <div>
-                <p class="text-sm text-slate-500">WA Gateway</p>
-                <h1 class="text-3xl font-semibold">Control Panel</h1>
-            </div>
-            <div class="flex items-center gap-4">
-                <div class="text-right text-sm">
-                    <p class="text-slate-500">API Base</p>
-                    <p class="font-semibold">{{ $gatewayConfig['base'] }}</p>
+<body class="bg-light">
+    <div class="wrapper">
+        <div class="content-wrapper">
+            <div class="content pt-4">
+                <div class="container-fluid">
+                    <div class="card card-outline card-primary shadow-sm mb-3">
+                        <div class="card-body d-flex flex-wrap align-items-center justify-content-between">
+                            <div class="mb-2 mb-md-0">
+                                <p class="text-muted mb-0">WA Gateway</p>
+                                <h1 class="h3 font-weight-bold mb-0">Control Panel</h1>
+                            </div>
+            <div class="d-flex align-items-start gap-3">
+                <div class="text-right small">
+                    <p class="text-muted mb-1"><i class="fas fa-link me-1"></i>API Base</p>
+                    <p class="font-weight-bold mb-1">{{ $gatewayConfig['base'] }}</p>
                     @if($gatewayConfig['key'])
                         @php
                             $plainKey = (string) $gatewayConfig['key'];
                             $masked = str_repeat('•', max(strlen($plainKey) - 3, 3));
                         @endphp
-                        <div class="mt-1 text-xs text-slate-500">
+                        <div class="text-muted">
                             <span>Master Key:</span>
                             <span id="gateway-key-masked" class="font-mono">{{ $masked }}</span>
                             <span id="gateway-key-plain" class="font-mono hidden">{{ $plainKey }}</span>
-                            <button type="button" id="btn-toggle-gateway-key" class="ml-2 underline hover:text-slate-900">Show</button>
-                            <button type="button" id="btn-copy-gateway-key" class="ml-2 underline hover:text-slate-900">Copy</button>
+                            <button type="button" id="btn-toggle-gateway-key" class="btn btn-link btn-sm p-0 ml-2">Show</button>
+                            <button type="button" id="btn-copy-gateway-key" class="btn btn-link btn-sm p-0 ml-2">Copy</button>
                         </div>
                     @else
-                        <p class="text-xs text-amber-600">API Key kosong (akses publik)</p>
+                        <p class="text-warning mb-0"><i class="fas fa-exclamation-triangle me-1"></i>API Key kosong (akses publik)</p>
                     @endif
                 </div>
-                <div class="flex items-center gap-2">
-                    <a href="{{ route('profile.show') }}" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 hover:bg-slate-300 text-xs">Profil</a>
+                <div class="btn-group">
+                    <a href="{{ route('devices.manage') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-microchip me-1"></i> Device Management</a>
+                    <a href="{{ route('profile.show') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-user me-1"></i> Profil</a>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
-                        <button class="px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 text-xs">Logout</button>
+                        <button class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt me-1"></i> Logout</button>
                     </form>
                 </div>
             </div>
-        </header>
+                        </div>
+                    </div>
 
-        @if($statusMessage)
-            <div class="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800">
-                {{ $statusMessage }}
-            </div>
-        @endif
+                    @if($statusMessage)
+                        <div class="alert alert-success alert-dismissible fade show">
+                            <i class="fas fa-check-circle me-1"></i>{{ $statusMessage }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    @endif
 
-        @if($errors->any())
-            <div class="mb-4 rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-rose-800">
-                <ul class="list-disc list-inside space-y-1">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
+                    @if($errors->any())
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            <ul class="mb-0 pl-3">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <div class="bg-white shadow rounded-xl p-5 border border-slate-100">
-                <p class="text-sm text-slate-500 mb-1">API Status</p>
+                    <div class="row">
+                        <div class="col-lg-6 mb-3">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-body">
+                                    <p class="text-muted text-sm mb-1"><i class="fas fa-signal me-1 text-primary"></i>API Status</p>
                 @php
                     $apiStatusLabel = 'Tidak diketahui';
                     $apiStatusClass = 'text-amber-600';
@@ -77,230 +123,163 @@
                         $apiStatusDetail = json_encode($health);
                     }
                 @endphp
-                <p id="api-status-label" class="{{ $apiStatusClass }} font-semibold">{{ $apiStatusLabel }}</p>
-                <p id="api-status-detail" class="text-xs text-slate-500 mt-1 break-all">{{ $apiStatusDetail }}</p>
-            </div>
-
-            <div class="bg-white shadow rounded-xl p-5 border border-slate-100">
-                <div class="flex items-start justify-between">
-                    <div>
-                        <p class="text-sm text-slate-500 mb-1">NPM Server</p>
-                        @if($npmStatus['running'])
-                            @if(isset($npmStatus['source']) && $npmStatus['source'] === 'inferred')
-                                <p class="text-emerald-600 font-semibold">Running (external)</p>
-                            @elseif($npmStatus['pid'])
-                                <p class="text-emerald-600 font-semibold">Running (PID {{ $npmStatus['pid'] }})</p>
-                            @else
-                                <p class="text-emerald-600 font-semibold">Running</p>
-                            @endif
-                        @else
-                            <p class="text-rose-600 font-semibold">Stopped</p>
-                        @endif
-                        <p class="text-xs text-slate-500 mt-1 break-all">{{ $npmStatus['command'] }}</p>
-                        <p class="text-xs text-slate-500 break-all">Dir: {{ $npmStatus['workingDir'] }}</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <form method="POST" action="{{ route('server.start') }}">
-                            @csrf
-                            <button class="px-3 py-2 text-xs rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-60" {{ $npmStatus['running'] ? 'disabled' : '' }}>
-                                Start
-                            </button>
-                        </form>
-                        <form method="POST" action="{{ route('server.stop') }}">
-                            @csrf
-                            <button class="px-3 py-2 text-xs rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition disabled:opacity-60" {{ $npmStatus['running'] ? '' : 'disabled' }}>
-                                Stop
-                            </button>
-                        </form>
-                    </div>
-                </div>
-                <p class="mt-2 text-xs text-slate-500 break-all">Log: {{ $npmStatus['logFile'] }}</p>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 bg-white shadow rounded-xl p-5 border border-slate-100">
-                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-                    <div class="flex items-center gap-3">
-                        <div class="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                            <span class="text-lg">🔌</span>
-                        </div>
-                        <div>
-                            <p class="text-sm text-slate-500">List Device #all</p>
-                            <h2 class="text-xl font-semibold">Devices</h2>
-                        </div>
-                    </div>
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <div class="flex items-center gap-2">
-                            <input id="device-search" type="text" placeholder="Search by Device ID / Phone" class="w-full sm:w-64 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                            <button type="button" id="device-search-btn" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-sm">Search</button>
-                        </div>
-                        <button type="button" id="btn-create-device" class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700">+ Create Device</button>
-                    </div>
-                </div>
-
-                @php
-                    $statusMap = [];
-                    foreach (($sessionStatuses ?? []) as $row) {
-                        if (is_array($row) && isset($row['id'])) $statusMap[$row['id']] = $row;
-                    }
-                @endphp
-
-                <div id="device-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                    @forelse($sessions as $session)
-                        @php
-                            $row = $statusMap[$session] ?? [];
-                            $st = $row['status'] ?? 'disconnected';
-                            $userId = $row['user']['id'] ?? null;
-                            $userDisplay = $userId ? preg_replace('/@.*/', '', $userId) : 'Not linked';
-                            $cfg = $sessionConfigs[$session] ?? [];
-                            $deviceName = $cfg['deviceName'] ?? null;
-                            $deviceName = is_string($deviceName) && trim($deviceName) !== '' ? trim($deviceName) : null;
-
-                            $badgeClass = match($st) {
-                                'connected' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                                'connecting' => 'bg-amber-50 text-amber-700 border-amber-200',
-                                default => 'bg-rose-50 text-rose-700 border-rose-200',
-                            };
-                        @endphp
-                        <div class="device-card border border-slate-100 rounded-2xl p-5 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-sm hover:shadow-md transition"
-                             data-device="{{ $session }}"
-                             data-name="{{ $deviceName ?? '' }}"
-                             data-phone="{{ $userDisplay ?? '' }}"
-                             data-status="{{ $st }}"
-                             data-webhook="{{ $cfg['webhookBaseUrl'] ?? '' }}"
-                             data-tracking-webhook="{{ $cfg['trackingWebhookBaseUrl'] ?? '' }}"
-                             data-device-status-webhook="{{ $cfg['deviceStatusWebhookBaseUrl'] ?? '' }}"
-                             data-api-key="{{ $cfg['apiKey'] ?? '' }}"
-                             data-incoming="{{ ($cfg['incomingEnabled'] ?? true) ? '1' : '0' }}"
-                             data-autoreply="{{ ($cfg['autoReplyEnabled'] ?? false) ? '1' : '0' }}"
-                             data-tracking="{{ ($cfg['trackingEnabled'] ?? true) ? '1' : '0' }}"
-                             data-device-status="{{ ($cfg['deviceStatusEnabled'] ?? true) ? '1' : '0' }}">
-                            <div class="flex items-start justify-between gap-3">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-12 w-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg shadow-inner">📱</div>
-                                    <div>
-                                        <p class="font-semibold leading-tight text-slate-900">{{ $deviceName ?? $session }}</p>
-                                        <p class="text-xs text-slate-500 font-mono">#{{ $session }}</p>
-                                        <p class="device-phone text-xs text-slate-600 font-mono">{{ $userDisplay }}</p>
-                                        <span class="device-badge inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full border {{ $badgeClass }}">{{ ucfirst($st) }}</span>
-                                    </div>
+                                    <h5 id="api-status-label" class="{{ $apiStatusClass }} font-weight-bold">{{ $apiStatusLabel }}</h5>
+                                    <p id="api-status-detail" class="text-muted small mb-0">{{ $apiStatusDetail }}</p>
                                 </div>
                             </div>
+                        </div>
 
-                            <div class="mt-4 rounded-xl border border-slate-100 bg-white/80 p-3 text-xs text-slate-700 shadow-inner">
-                                <p class="truncate"><span class="text-slate-500">Webhook:</span> <span class="font-mono">{{ $cfg['webhookBaseUrl'] ?? '-' }}</span></p>
-                                <p class="mt-1">
-                                    <span class="text-slate-500">Incoming:</span> {{ ($cfg['incomingEnabled'] ?? true) ? 'ON' : 'OFF' }} ·
-                                    <span class="text-slate-500">AutoReply:</span> {{ ($cfg['autoReplyEnabled'] ?? false) ? 'ON' : 'OFF' }}
-                                </p>
-                            </div>
-
-                            <div class="mt-5 flex flex-wrap items-center gap-2">
-                                <form method="POST" action="{{ route('sessions.start') }}" class="inline form-connect" data-session="{{ $session }}">
-                                    @csrf
-                                    <input type="hidden" name="session" value="{{ $session }}">
-                                    <button class="h-9 w-9 rounded-lg bg-slate-900 text-white text-sm font-semibold shadow hover:bg-slate-800 flex items-center justify-center" title="Connect / QR" aria-label="Connect / QR">🔗</button>
-                                </form>
-
-                                <button type="button" class="btn-open-settings h-9 w-9 rounded-lg border border-amber-200 bg-amber-100 text-sm font-semibold text-amber-800 shadow-sm hover:bg-amber-200/80 flex items-center justify-center" data-session="{{ $session }}" title="Settings" aria-label="Settings">⚙️</button>
-                                <button type="button" class="btn-message-log h-9 w-9 rounded-lg bg-indigo-600 text-white text-sm font-semibold shadow hover:bg-indigo-700 flex items-center justify-center" data-session="{{ $session }}" title="Message Status Log" aria-label="Message Status Log">📑</button>
-                                <button type="button" class="btn-group-finder h-9 w-9 rounded-lg bg-cyan-600 text-white text-sm font-semibold shadow hover:bg-cyan-700 flex items-center justify-center" data-session="{{ $session }}" title="Group ID Finder" aria-label="Group ID Finder">👥</button>
-                                <form method="POST" action="{{ route('devices.delete', $session) }}" onsubmit="return confirm('Hapus device {{ $session }}?');" class="inline">
-                                    @csrf
-                                    <button class="h-9 w-9 rounded-lg bg-rose-600 text-white text-sm font-semibold shadow hover:bg-rose-700 flex items-center justify-center" title="Delete" aria-label="Delete">🗑️</button>
-                                </form>
+                        <div class="col-lg-6 mb-3">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-body d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <p class="text-muted text-sm mb-1"><i class="fas fa-server me-1 text-primary"></i>NPM Server</p>
+                        @if($npmStatus['running'])
+                            @if(isset($npmStatus['source']) && $npmStatus['source'] === 'inferred')
+                                <p class="text-success font-weight-bold mb-1">Running (external)</p>
+                            @elseif($npmStatus['pid'])
+                                <p class="text-success font-weight-bold mb-1">Running (PID {{ $npmStatus['pid'] }})</p>
+                            @else
+                                <p class="text-success font-weight-bold mb-1">Running</p>
+                            @endif
+                        @else
+                            <p class="text-danger font-weight-bold mb-1">Stopped</p>
+                        @endif
+                                        <p class="text-muted small mb-0"><strong>Cmd:</strong> {{ $npmStatus['command'] }}</p>
+                                        <p class="text-muted small mb-0"><strong>Dir:</strong> {{ $npmStatus['workingDir'] }}</p>
+                                    </div>
+                                    <div class="btn-group">
+                                        <form method="POST" action="{{ route('server.start') }}">
+                                            @csrf
+                                            <button class="btn btn-success btn-sm" {{ $npmStatus['running'] ? 'disabled' : '' }}>
+                                                <i class="fas fa-play me-1"></i>Start
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ route('server.stop') }}">
+                                            @csrf
+                                            <button class="btn btn-danger btn-sm" {{ $npmStatus['running'] ? '' : 'disabled' }}>
+                                                <i class="fas fa-stop me-1"></i>Stop
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div class="card-footer text-muted small">
+                                    <i class="fas fa-file-alt me-1"></i>Log: {{ $npmStatus['logFile'] }}
+                                </div>
                             </div>
                         </div>
-                    @empty
-                        <div class="text-sm text-slate-500">Belum ada device.</div>
-                    @endforelse
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <div class="card shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <div>
+                                            <p class="text-muted text-sm mb-0"><i class="fas fa-exclamation-triangle me-1 text-danger"></i>Log Error Terakhir</p>
+                                            <h5 class="mb-0">Server Log</h5>
+                                        </div>
+                                        <span class="badge bg-light text-muted">{{ $npmStatus['logFile'] }}</span>
+                                    </div>
+                                    @if($logTail)
+                                        <pre class="bg-dark text-light p-3 rounded small mb-0" style="max-height: min(40vh, 320px); overflow:auto; white-space:pre-wrap;">{{ $logTail }}</pre>
+                                    @else
+                                        <p class="text-muted small mb-0">Belum ada log error atau file log belum tersedia.</p>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-            <div class="bg-white shadow rounded-xl p-5 border border-slate-100">
-                <h3 class="text-lg font-semibold mb-2">QR Terbaru</h3>
-                @if($qrData)
-                    @php
-                        $qrSrc = str_starts_with($qrData, 'data:image')
-                            ? $qrData
-                            : 'https://quickchart.io/qr?text=' . urlencode($qrData) . '&size=300';
-                    @endphp
-                    <p class="text-sm text-slate-500 mb-2">Session: {{ $qrSession }}</p>
-                    <img class="w-full rounded-lg border border-slate-100" src="{{ $qrSrc }}" alt="QR Code">
-                    <p class="text-xs text-slate-500 mt-2">Scan dengan WhatsApp Anda.</p>
-                @else
-                    <p class="text-sm text-slate-500">Belum ada permintaan QR.</p>
-                @endif
-            </div>
         </div>
-    </div>
-    <div id="modal-create-device" class="fixed inset-0 bg-black/40 hidden items-center justify-center px-4">
-        <div class="bg-white w-full max-w-lg rounded-xl shadow-lg border border-slate-100 p-5">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-lg font-semibold">Create Device</h3>
-                <button type="button" id="btn-close-create" class="text-slate-500 hover:text-slate-900">✕</button>
-            </div>
-            <form method="POST" action="{{ route('devices.create') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                @csrf
-                <div class="col-span-1 md:col-span-2">
-                    <label class="block text-xs text-slate-500 mb-1">Device Name</label>
-                    <input name="device_name" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="mis. TopSETTING" required>
+</div>
+    <div class="modal fade" id="modal-create-device" tabindex="-1" aria-labelledby="modalCreateLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalCreateLabel">Create Device</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="col-span-1 md:col-span-2">
-                    <label class="block text-xs text-slate-500 mb-1">Nomor WA Device</label>
-                    <input name="device_phone" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="62812xxxxxx" required>
+                <div class="modal-body">
+                    <form method="POST" action="{{ route('devices.create') }}" class="row g-3 needs-validation" novalidate>
+                        @csrf
+                        <input type="hidden" name="mode" id="create-mode" value="qr">
+                        <div class="col-12">
+                            <label class="form-label text-muted small">Device Name</label>
+                            <input name="device_name" type="text" class="form-control" placeholder="mis. TopSETTING" required>
+                            <div class="invalid-feedback">Nama device wajib diisi.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label text-muted small">Nomor WA Device</label>
+                            <input name="device_phone" type="text" class="form-control" placeholder="62812xxxxxx" required>
+                            <div class="invalid-feedback">Nomor WA wajib diisi.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label text-muted small">Metode Koneksi</label>
+                            <div class="btn-group w-100" role="group" aria-label="Metode koneksi">
+                                <button type="button" class="btn btn-outline-primary btn-sm w-50 active" data-mode="qr">Scan QR</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-50" data-mode="code">Pairing Code</button>
+                            </div>
+                            <small class="text-muted d-block mt-1">Pilih Pairing Code untuk link lewat nomor WhatsApp (tanpa scan QR).</small>
+                        </div>
+                        <div class="col-12 d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                            <button class="btn btn-success btn-sm">Create</button>
+                        </div>
+                    </form>
                 </div>
+            </div>
+        </div>
+    </div>
 
-                <div class="col-span-1 md:col-span-2 flex justify-end gap-2 pt-2">
-                    <button type="button" id="btn-cancel-create" class="px-3 py-2 rounded-lg border border-slate-200 text-sm">Cancel</button>
-                    <button class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700">Create</button>
+    <div class="modal fade" id="modal-settings" tabindex="-1" aria-labelledby="modalSettingsLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalSettingsLabel">Device Settings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-settings" class="fixed inset-0 bg-black/30 backdrop-blur-sm hidden items-center justify-center px-4">
-        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg border border-slate-100 p-5 max-h-[80vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-lg font-semibold">Device Settings</h3>
-                <button type="button" id="btn-close-settings" class="text-slate-500 hover:text-slate-900">✕</button>
+                <div class="modal-body">
+                    <div id="settings-content" class="text-muted small">Pilih device untuk mengatur.</div>
+                </div>
             </div>
-            <div id="settings-content" class="text-sm text-slate-600">Pilih device untuk mengatur.</div>
         </div>
     </div>
 
-    <div id="modal-group-finder" class="fixed inset-0 bg-black/40 hidden items-center justify-center px-4">
-        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg border border-slate-100 p-5">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-lg font-semibold">Group ID Finder</h3>
-                <button type="button" id="btn-close-group" class="text-slate-500 hover:text-slate-900">✕</button>
+    <div class="modal fade" id="modal-group-finder" tabindex="-1" aria-labelledby="modalGroupLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalGroupLabel">Group ID Finder</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="group-finder-content" class="text-muted small">Pilih device.</div>
+                </div>
             </div>
-            <div id="group-finder-content" class="text-sm text-slate-600">Pilih device.</div>
         </div>
     </div>
 
-    <div id="modal-message-log" class="fixed inset-0 bg-black/30 backdrop-blur-sm hidden items-center justify-center px-4">
-        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg border border-slate-100 p-5 max-h-[80vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-lg font-semibold">Message Status Log</h3>
-                <button type="button" id="btn-close-message-log" class="text-slate-500 hover:text-slate-900">✕</button>
+    <div class="modal fade" id="modal-message-log" tabindex="-1" aria-labelledby="modalLogLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalLogLabel">Message Status Log</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="message-log-content" class="text-muted small">Pilih device.</div>
+                </div>
             </div>
-            <div id="message-log-content" class="text-sm text-slate-600">Pilih device.</div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         (() => {
             const sessionsBaseUrl = '{{ url('/sessions') }}';
             const autoRefreshReason = @json($autoRefresh ?? null);
             const qrPresent = @json((bool) $qrData);
-
-            // Auto refresh after server start or device creation; allow time to scan QR first.
-            if (autoRefreshReason === 'server-start' || autoRefreshReason === 'device-create') {
-                const delay = autoRefreshReason === 'device-create' && qrPresent ? 20000 : 1500;
-                setTimeout(() => window.location.reload(), delay);
-            }
 
             // Master key toggle/copy
             const keyMasked = document.getElementById('gateway-key-masked');
@@ -341,11 +320,20 @@
             const apiStatusUrl = '{{ route('api.status') }}';
             const deviceStatusUrl = '{{ route('devices.status') }}';
             const refreshMs = 5000;
+            const shouldAutoRefreshServer = autoRefreshReason === 'server-start';
+            const shouldAutoRefreshDevice = false;
+            const reloadDelayMs = 6000;
+            let reloadTimer = null;
 
             const statusClass = {
                 online: 'text-emerald-600',
                 error: 'text-rose-600',
                 unknown: 'text-amber-600',
+            };
+
+            const scheduleReload = () => {
+                if (reloadTimer) return;
+                reloadTimer = setTimeout(() => window.location.reload(), reloadDelayMs);
             };
 
             const setApiStatus = ({ status, health, message }) => {
@@ -358,6 +346,10 @@
                 apiStatusLabel.className = `${statusClass[state] || statusClass.unknown} font-semibold`;
                 apiStatusDetail.textContent = detail;
                 apiStatusDetail.className = 'text-xs text-slate-500 mt-1 break-all';
+
+                if (shouldAutoRefreshServer && state === 'online') {
+                    scheduleReload();
+                }
             };
 
             const lastStatuses = new Map();
@@ -391,6 +383,10 @@
                 }
                 const cleanPhone = (device.user?.id || '').replace(/@.*/, '');
                 card.setAttribute('data-phone', cleanPhone || '');
+
+                if (shouldAutoRefreshDevice && prevStatus !== 'connected' && status === 'connected') {
+                    scheduleReload();
+                }
             };
 
             const refreshDeviceStatuses = async () => {
@@ -419,29 +415,35 @@
             };
 
             // Modals
-            const modalCreate = document.getElementById('modal-create-device');
+            const modalCreateEl = document.getElementById('modal-create-device');
+            const modalCreate = modalCreateEl ? new bootstrap.Modal(modalCreateEl) : null;
             const btnCreate = document.getElementById('btn-create-device');
-            const btnCloseCreate = document.getElementById('btn-close-create');
-            const btnCancelCreate = document.getElementById('btn-cancel-create');
-            const modalSettings = document.getElementById('modal-settings');
-            const btnCloseSettings = document.getElementById('btn-close-settings');
+            const modeInput = document.getElementById('create-mode');
+            const modeButtons = document.querySelectorAll('[data-mode]');
+            const modalSettingsEl = document.getElementById('modal-settings');
+            const modalSettings = modalSettingsEl ? new bootstrap.Modal(modalSettingsEl) : null;
             const settingsContent = document.getElementById('settings-content');
-            const modalGroup = document.getElementById('modal-group-finder');
-            const btnCloseGroup = document.getElementById('btn-close-group');
+            const modalGroupEl = document.getElementById('modal-group-finder');
+            const modalGroup = modalGroupEl ? new bootstrap.Modal(modalGroupEl) : null;
             const groupContent = document.getElementById('group-finder-content');
-            const modalMessageLog = document.getElementById('modal-message-log');
-            const btnCloseMessageLog = document.getElementById('btn-close-message-log');
+            const modalMessageLogEl = document.getElementById('modal-message-log');
+            const modalMessageLog = modalMessageLogEl ? new bootstrap.Modal(modalMessageLogEl) : null;
             const messageLogContent = document.getElementById('message-log-content');
 
-            const show = (el) => el && (el.classList.remove('hidden'), el.classList.add('flex'));
-            const hide = (el) => el && (el.classList.add('hidden'), el.classList.remove('flex'));
+            const show = (modal) => modal?.show();
+            const hide = (modal) => modal?.hide();
 
             btnCreate?.addEventListener('click', () => show(modalCreate));
-            btnCloseCreate?.addEventListener('click', () => hide(modalCreate));
-            btnCancelCreate?.addEventListener('click', () => hide(modalCreate));
-            btnCloseSettings?.addEventListener('click', () => hide(modalSettings));
-            btnCloseGroup?.addEventListener('click', () => hide(modalGroup));
-            btnCloseMessageLog?.addEventListener('click', () => hide(modalMessageLog));
+            modeButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    modeButtons.forEach((b) => b.classList.remove('active', 'btn-primary'));
+                    modeButtons.forEach((b) => b.classList.add('btn-outline-secondary'));
+                    btn.classList.add('active', 'btn-primary');
+                    btn.classList.remove('btn-outline-secondary');
+                    const mode = btn.getAttribute('data-mode') || 'qr';
+                    if (modeInput) modeInput.value = mode;
+                });
+            });
 
             // Connect / QR behavior:
             // - If connected/connecting -> confirm restart and submit to sessions.restart
@@ -491,64 +493,66 @@
                     const csrf = '{{ csrf_token() }}';
 
                     settingsContent.innerHTML = `
-                        <form method=\"POST\" action=\"${'{{ url('/sessions') }}'}/${encodeURIComponent(session)}/config\" class=\"grid grid-cols-1 md:grid-cols-2 gap-3\">
+                        <form method=\"POST\" action=\"${'{{ url('/sessions') }}'}/${encodeURIComponent(session)}/config\" class=\"row g-3 needs-validation\" novalidate>
                             <input type=\"hidden\" name=\"_token\" value=\"{{ csrf_token() }}\" />
-                            <div class=\"col-span-1 md:col-span-2\">
-                                <label class=\"block text-xs text-slate-500 mb-1\">Device Name</label>
-                                <input name=\"device_name\" type=\"text\" value=\"${name.replace(/\\\"/g,'&quot;')}\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"Nama device\" />
+                            <div class=\"col-12\">
+                                <label class=\"form-label text-muted small\">Device Name</label>
+                                <input name=\"device_name\" type=\"text\" value=\"${name.replace(/\\\"/g,'&quot;')}\" class=\"form-control\" placeholder=\"Nama device\">
                             </div>
-                            <div class=\"col-span-1 md:col-span-2\">
-                                <label class=\"block text-xs text-slate-500 mb-1\">Webhook URL (Incoming & Auto Reply)</label>
-                                <div class=\"flex gap-2\">
-                                    <input id=\"webhook_base_url\" name=\"webhook_base_url\" type=\"text\" value=\"${webhook.replace(/\\\"/g,'&quot;')}\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" required>
-                                    <button type=\"button\" class=\"btn-test-webhook px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50\" data-type=\"base\" data-session=\"${encodeURIComponent(session)}\">Test</button>
+                            <div class=\"col-12\">
+                                <label class=\"form-label text-muted small\">Webhook URL (Incoming & Auto Reply)</label>
+                                <div class=\"input-group\">
+                                    <input id=\"webhook_base_url\" name=\"webhook_base_url\" type=\"text\" value=\"${webhook.replace(/\\\"/g,'&quot;')}\" class=\"form-control\" required>
+                                    <button type=\"button\" class=\"btn btn-outline-secondary btn-test-webhook\" data-type=\"base\" data-session=\"${encodeURIComponent(session)}\">Test</button>
                                 </div>
-                                <p class=\"text-xs text-slate-500 mt-1\">Endpoint test: <span class=\"font-mono\">/message</span></p>
-                                <p id=\"test-result-base\" class=\"text-xs mt-1\"></p>
+                                <p class=\"text-muted small mb-0 mt-1\">Endpoint test: <span class=\"text-monospace\">/message</span></p>
+                                <p id=\"test-result-base\" class=\"small mt-1\"></p>
                             </div>
-                            <div class=\"col-span-1 md:col-span-2\">
-                                <label class=\"block text-xs text-slate-500 mb-1\">API Key</label>
-                                <div class=\"flex gap-2\">
-                                    <input id=\"api_key\" name=\"api_key\" type=\"text\" value=\"${apiKeyStored.replace(/\\\"/g,'&quot;')}\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"API key\" />
-                                    <button type=\"button\" id=\"btn-generate-apikey\" class=\"px-3 py-2 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800\">Generate</button>
+                            <div class=\"col-12\">
+                                <label class=\"form-label text-muted small\">API Key</label>
+                                <div class=\"input-group\">
+                                    <input id=\"api_key\" name=\"api_key\" type=\"text\" value=\"${apiKeyStored.replace(/\\\"/g,'&quot;')}\" class=\"form-control\" placeholder=\"API key\">
+                                    <button type=\"button\" id=\"btn-generate-apikey\" class=\"btn btn-dark\">Generate</button>
                                 </div>
                             </div>
-                            <label class=\"flex items-center gap-2 text-sm\">
-                                <input type=\"checkbox\" name=\"incoming_enabled\" value=\"1\" class=\"rounded\" ${incoming ? 'checked' : ''}>
-                                Get Incoming Message
-                            </label>
-                            <label class=\"flex items-center gap-2 text-sm\">
-                                <input type=\"checkbox\" name=\"auto_reply_enabled\" value=\"1\" class=\"rounded\" ${autoreply ? 'checked' : ''}>
-                                Get Auto Reply From Webhook
-                            </label>
-                            <label class=\"flex items-center gap-2 text-sm\">
-                                <input type=\"checkbox\" name=\"tracking_enabled\" value=\"1\" class=\"rounded\" ${tracking ? 'checked' : ''}>
-                                Get Tracking URL (status)
-                            </label>
-                            <div class=\"col-span-1 md:col-span-2\">
-                                <label class=\"block text-xs text-slate-500 mb-1\">Tracking Webhook URL (Status)</label>
-                                <div class=\"flex gap-2\">
-                                    <input id=\"tracking_webhook_base_url\" name=\"tracking_webhook_base_url\" type=\"text\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"kosong = pakai Webhook URL utama\" />
-                                    <button type=\"button\" class=\"btn-test-webhook px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50\" data-type=\"tracking\" data-session=\"${encodeURIComponent(session)}\">Test</button>
+                            <div class=\"col-12 d-flex flex-wrap gap-3\">
+                                <div class=\"form-check\">
+                                    <input class=\"form-check-input\" type=\"checkbox\" name=\"incoming_enabled\" value=\"1\" id=\"incoming_enabled\" ${incoming ? 'checked' : ''}>
+                                    <label class=\"form-check-label\" for=\"incoming_enabled\">Get Incoming Message</label>
                                 </div>
-                                <p class=\"text-xs text-slate-500 mt-1\">Endpoint test: <span class=\"font-mono\">/status</span></p>
-                                <p id=\"test-result-tracking\" class=\"text-xs mt-1\"></p>
-                            </div>
-                            <label class=\"flex items-center gap-2 text-sm\">
-                                <input type=\"checkbox\" name=\"device_status_enabled\" value=\"1\" class=\"rounded\" ${deviceStatus ? 'checked' : ''}>
-                                Get Device Status
-                            </label>
-                            <div class=\"col-span-1 md:col-span-2\">
-                                <label class=\"block text-xs text-slate-500 mb-1\">Device Status Webhook URL</label>
-                                <div class=\"flex gap-2\">
-                                    <input id=\"device_status_webhook_base_url\" name=\"device_status_webhook_base_url\" type=\"text\" class=\"w-full rounded-lg border border-slate-200 px-3 py-2\" placeholder=\"kosong = pakai Webhook URL utama\" />
-                                    <button type=\"button\" class=\"btn-test-webhook px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50\" data-type=\"device_status\" data-session=\"${encodeURIComponent(session)}\">Test</button>
+                                <div class=\"form-check\">
+                                    <input class=\"form-check-input\" type=\"checkbox\" name=\"auto_reply_enabled\" value=\"1\" id=\"auto_reply_enabled\" ${autoreply ? 'checked' : ''}>
+                                    <label class=\"form-check-label\" for=\"auto_reply_enabled\">Get Auto Reply From Webhook</label>
                                 </div>
-                                <p class=\"text-xs text-slate-500 mt-1\">Endpoint test: <span class=\"font-mono\">/session</span></p>
-                                <p id=\"test-result-device_status\" class=\"text-xs mt-1\"></p>
+                                <div class=\"form-check\">
+                                    <input class=\"form-check-input\" type=\"checkbox\" name=\"tracking_enabled\" value=\"1\" id=\"tracking_enabled\" ${tracking ? 'checked' : ''}>
+                                    <label class=\"form-check-label\" for=\"tracking_enabled\">Get Tracking URL (status)</label>
+                                </div>
+                                <div class=\"form-check\">
+                                    <input class=\"form-check-input\" type=\"checkbox\" name=\"device_status_enabled\" value=\"1\" id=\"device_status_enabled\" ${deviceStatus ? 'checked' : ''}>
+                                    <label class=\"form-check-label\" for=\"device_status_enabled\">Get Device Status</label>
+                                </div>
                             </div>
-                            <div class=\"col-span-1 md:col-span-2 flex justify-end pt-2\">
-                                <button class=\"px-3 py-2 rounded-lg bg-slate-900 text-white text-sm\">Save</button>
+                            <div class=\"col-12\">
+                                <label class=\"form-label text-muted small\">Tracking Webhook URL (Status)</label>
+                                <div class=\"input-group\">
+                                    <input id=\"tracking_webhook_base_url\" name=\"tracking_webhook_base_url\" type=\"text\" class=\"form-control\" placeholder=\"kosong = pakai Webhook URL utama\">
+                                    <button type=\"button\" class=\"btn btn-outline-secondary btn-test-webhook\" data-type=\"tracking\" data-session=\"${encodeURIComponent(session)}\">Test</button>
+                                </div>
+                                <p class=\"text-muted small mb-0 mt-1\">Endpoint test: <span class=\"text-monospace\">/status</span></p>
+                                <p id=\"test-result-tracking\" class=\"small mt-1\"></p>
+                            </div>
+                            <div class=\"col-12\">
+                                <label class=\"form-label text-muted small\">Device Status Webhook URL</label>
+                                <div class=\"input-group\">
+                                    <input id=\"device_status_webhook_base_url\" name=\"device_status_webhook_base_url\" type=\"text\" class=\"form-control\" placeholder=\"kosong = pakai Webhook URL utama\">
+                                    <button type=\"button\" class=\"btn btn-outline-secondary btn-test-webhook\" data-type=\"device_status\" data-session=\"${encodeURIComponent(session)}\">Test</button>
+                                </div>
+                                <p class=\"text-muted small mb-0 mt-1\">Endpoint test: <span class=\"text-monospace\">/session</span></p>
+                                <p id=\"test-result-device_status\" class=\"small mt-1\"></p>
+                            </div>
+                            <div class=\"col-12 d-flex justify-content-end\">
+                                <button class=\"btn btn-primary\">Save</button>
                             </div>
                         </form>
                     `;
@@ -592,7 +596,7 @@
                             const out = document.getElementById(`test-result-${type}`);
                             if (out) {
                                 out.textContent = 'Testing...';
-                                out.className = 'text-xs mt-1 text-slate-500';
+                                out.className = 'small mt-1 text-secondary';
                             }
                             try {
                                 const res = await fetch(`${'{{ url('/sessions') }}'}/${sessionEncoded}/webhook-test`, {
@@ -609,12 +613,12 @@
                                 const msg = data.message || (ok ? 'OK' : 'FAILED');
                                 if (out) {
                                     out.textContent = msg;
-                                    out.className = `text-xs mt-1 ${ok ? 'text-emerald-700' : 'text-rose-700'}`;
+                                    out.className = `small mt-1 ${ok ? 'text-success' : 'text-danger'}`;
                                 }
                             } catch (err) {
                                 if (out) {
                                     out.textContent = 'FAILED: tidak bisa menguji URL';
-                                    out.className = 'text-xs mt-1 text-rose-700';
+                                    out.className = 'small mt-1 text-danger';
                                 }
                             }
                         });
@@ -631,24 +635,26 @@
                     if (!session || !groupContent) return;
 
                     groupContent.innerHTML = `
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-xs text-slate-500">Group ID Finder</p>
-                                    <p class="font-semibold text-slate-900">${session}</p>
-                                </div>
-                                <button type="button" class="btn-refresh-groups px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" data-session="${encodeURIComponent(session)}">Reload</button>
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div>
+                                <p class="text-muted small mb-0">Group ID Finder</p>
+                                <p class="fw-semibold mb-0">${session}</p>
                             </div>
-                            <p class="text-xs text-slate-500">Cari Group ID WhatsApp (device harus Connected).</p>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                <input type="text" class="group-search-q w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Cari nama group / group id">
-                                <input type="text" class="group-search-phone w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Cari nomor anggota (628xxx / 08xxx)">
-                            </div>
-                            <div class="flex justify-end gap-2">
-                                <button type="button" class="btn-search-groups px-3 py-2 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800">Search</button>
-                            </div>
-                            <div class="groups-result mt-2 text-sm text-slate-600">Belum ada data.</div>
+                            <button type="button" class="btn-refresh-groups btn btn-outline-secondary btn-sm" data-session="${encodeURIComponent(session)}">Reload</button>
                         </div>
+                        <p class="text-muted small">Cari Group ID WhatsApp (device harus Connected).</p>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <input type="text" class="group-search-q form-control form-control-sm" placeholder="Cari nama group / group id">
+                            </div>
+                            <div class="col-md-6">
+                                <input type="text" class="group-search-phone form-control form-control-sm" placeholder="Cari nomor anggota (628xxx / 08xxx)">
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2 mt-2">
+                            <button type="button" class="btn-search-groups btn btn-primary btn-sm">Search</button>
+                        </div>
+                        <div class="groups-result mt-2 text-muted small">Belum ada data.</div>
                     `;
 
                     const groupsResult = groupContent.querySelector('.groups-result');
@@ -659,7 +665,7 @@
                         const phone = (phoneEl?.value || '').trim();
                         if (groupsResult) {
                             groupsResult.textContent = 'Loading...';
-                            groupsResult.className = 'groups-result mt-2 text-sm text-slate-500';
+                            groupsResult.className = 'groups-result mt-2 text-secondary small';
                         }
                         try {
                             const url = new URL(`${sessionsBaseUrl}/${encodeURIComponent(session)}/groups`, window.location.origin);
@@ -672,25 +678,25 @@
                             if (!groupsResult) return;
                             if (groups.length === 0) {
                                 groupsResult.textContent = 'Tidak ada group ditemukan.';
-                                groupsResult.className = 'groups-result mt-2 text-sm text-amber-700';
+                                groupsResult.className = 'groups-result mt-2 text-warning small';
                                 return;
                             }
-                            groupsResult.className = 'groups-result mt-2 text-sm text-slate-600';
+                            groupsResult.className = 'groups-result mt-2 text-muted small';
                             groupsResult.innerHTML = `
-                                <div class="space-y-2">
+                                <div class="d-flex flex-column gap-2">
                                     ${groups.map((g) => {
                                         const gid = (g.id || '').toString();
                                         const subject = (g.subject || '').toString();
                                         const size = (g.size ?? '').toString();
-                                        const safeGid = gid.replace(/\"/g,'&quot;');
+                                        const safeGid = gid.replace(/\\\"/g,'&quot;');
                                         return `
-                                            <div class="border border-slate-100 rounded-lg p-3 bg-white flex items-start justify-between gap-3">
+                                            <div class="border rounded p-3 bg-white d-flex align-items-start justify-content-between gap-3">
                                                 <div class="min-w-0">
-                                                    <p class="font-semibold truncate">${subject || '-'}</p>
-                                                    <p class="text-xs text-slate-500 truncate font-mono">${gid}</p>
-                                                    <p class="text-xs text-slate-500">Members: ${size || '-'}</p>
+                                                    <p class="fw-semibold mb-1 text-truncate">${subject || '-'}</p>
+                                                    <p class="text-muted small mb-1 text-truncate text-monospace">${gid}</p>
+                                                    <p class="text-muted small mb-0">Members: ${size || '-'}</p>
                                                 </div>
-                                                <button type="button" class="btn-copy-groupid px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" data-group-id="${safeGid}">Copy ID</button>
+                                                <button type="button" class="btn-copy-groupid btn btn-outline-secondary btn-sm" data-group-id="${safeGid}">Copy ID</button>
                                             </div>
                                         `;
                                     }).join('')}
@@ -714,7 +720,7 @@
                         } catch (err) {
                             if (!groupsResult) return;
                             groupsResult.textContent = 'Gagal memuat group. Pastikan device sudah Connected.';
-                            groupsResult.className = 'groups-result mt-2 text-sm text-rose-700';
+                            groupsResult.className = 'groups-result mt-2 text-danger small';
                         }
                     };
 
@@ -732,19 +738,43 @@
                     if (!session || !messageLogContent) return;
 
                     messageLogContent.innerHTML = `
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-xs text-slate-500">Message Status Log</p>
-                                    <p class="font-semibold text-slate-900">${session}</p>
-                                </div>
-                                <button type="button" class="btn-refresh-log px-3 py-2 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" data-session="${encodeURIComponent(session)}">Reload</button>
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div>
+                                <p class="text-muted small mb-0">Message Status Log</p>
+                                <p class="fw-semibold mb-0">${session}</p>
                             </div>
-                            <div class="log-result mt-2 text-sm text-slate-600">Loading...</div>
+                            <button type="button" class="btn-refresh-log btn btn-outline-secondary btn-sm" data-session="${encodeURIComponent(session)}">Reload</button>
                         </div>
+                        <div class="row g-2 align-items-end mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small mb-1">Filter nomor/tujuan</label>
+                                <input type="text" class="form-control form-control-sm log-filter-phone" placeholder="628xx / id">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small mb-1">Status</label>
+                                <select class="form-select form-select-sm log-filter-status">
+                                    <option value="">Semua status</option>
+                                    <option value="pending">pending</option>
+                                    <option value="sent">sent</option>
+                                    <option value="delivered">delivered</option>
+                                    <option value="read">read</option>
+                                    <option value="failed">failed</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-grid d-md-block">
+                                <button type="button" class="btn btn-primary btn-sm btn-apply-log-filter">Filter</button>
+                            </div>
+                        </div>
+                        <div class="log-result mt-2 text-sm text-slate-600">Loading...</div>
                     `;
 
                     const logResult = messageLogContent.querySelector('.log-result');
+                    const escapeHtml = (value) => String(value ?? '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
                     const loadLog = async () => {
                         if (logResult) {
                             logResult.textContent = 'Loading...';
@@ -756,8 +786,17 @@
                             const data = await res.json().catch(() => ({}));
                             if (!data.ok) throw new Error(data.message || 'Failed');
                             const items = Array.isArray(data.data) ? data.data : [];
+                            const phoneFilter = (messageLogContent.querySelector('.log-filter-phone')?.value || '').trim().toLowerCase();
+                            const statusFilter = (messageLogContent.querySelector('.log-filter-status')?.value || '').trim().toLowerCase();
+                            const filtered = items.filter((item) => {
+                                const to = (item.to || '').toString().toLowerCase();
+                                const st = (item.status || '').toString().toLowerCase();
+                                const matchPhone = !phoneFilter || to.includes(phoneFilter);
+                                const matchStatus = !statusFilter || st === statusFilter;
+                                return matchPhone && matchStatus;
+                            });
                             if (!logResult) return;
-                            if (items.length === 0) {
+                            if (filtered.length === 0) {
                                 logResult.textContent = 'Belum ada log status.';
                                 logResult.className = 'log-result mt-2 text-sm text-amber-700';
                                 return;
@@ -768,15 +807,20 @@
                                     <thead class="bg-slate-100 text-slate-700">
                                         <tr>
                                             <th class="px-2 py-2 text-left">Message ID</th>
+                                            <th class="px-2 py-2 text-left">Tujuan</th>
+                                            <th class="px-2 py-2 text-left">Isi</th>
                                             <th class="px-2 py-2 text-left">Status</th>
                                             <th class="px-2 py-2 text-left">Updated</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${items.map((item) => {
+                                        ${filtered.map((item) => {
                                             const status = (item.status || '').toString();
                                             const ts = item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '-';
                                             const id = (item.id || '').toString();
+                                            const to = escapeHtml(item.to || '-');
+                                            const previewRaw = escapeHtml(item.preview || '');
+                                            const preview = previewRaw || '<span class="text-slate-400">-</span>';
                                             const badgeClass = status === 'delivered' || status === 'read' || status === 'sent'
                                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                                                 : status === 'pending'
@@ -785,6 +829,8 @@
                                             return `
                                                 <tr class="border-t border-slate-100">
                                                     <td class="px-2 py-2 font-mono break-all">${id}</td>
+                                                    <td class="px-2 py-2 font-mono text-[11px] break-all">${to}</td>
+                                                    <td class="px-2 py-2 text-slate-700 break-all">${preview}</td>
                                                     <td class="px-2 py-2">
                                                         <span class="text-[11px] px-2 py-0.5 rounded-full border ${badgeClass}">${status || '-'}</span>
                                                     </td>
@@ -803,6 +849,7 @@
                     };
 
                     messageLogContent.querySelector('.btn-refresh-log')?.addEventListener('click', loadLog);
+                    messageLogContent.querySelector('.btn-apply-log-filter')?.addEventListener('click', loadLog);
                     loadLog();
                     show(modalMessageLog);
                 });

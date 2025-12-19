@@ -7,7 +7,7 @@ import path from "path";
 import { toDataURL } from "qrcode";
 import { requestValidator } from "../middlewares/validation.middleware";
 import { createKeyMiddleware } from "../middlewares/key.middleware";
-import { whatsapp } from "../whatsapp";
+import { whatsapp, requestPairingCode } from "../whatsapp";
 import { getWaGatewayToken } from "../wa-gateway/auth";
 import {
   deleteDeviceBySessionId,
@@ -30,6 +30,7 @@ import {
   sendV2Video,
   truthy,
 } from "../wa-gateway/sender";
+import { recordOutgoingMessage } from "../status-store";
 import {
   addAutoreplyRule,
   addSchedules,
@@ -141,6 +142,63 @@ const createWaGatewayDeviceRouter = () => {
     }
   );
 
+  app.post(
+    "/device/create-code",
+    requestValidator(
+      "form",
+      z.object({
+        phone: z.string(),
+        name: z.string().optional(),
+      })
+    ),
+    async (c) => {
+      const payload = c.req.valid("form");
+      const sessionId = (payload.phone || "").trim();
+      if (!sessionId) {
+        throw new HTTPException(400, { message: "phone is required" });
+      }
+
+      const adapter = (whatsapp as any).adapter;
+      await deleteDeviceBySessionId(sessionId).catch(() => {});
+      await removeStoredSession(sessionId).catch(() => {});
+      if (adapter?.clearData) {
+        await adapter.clearData(sessionId).catch(() => {});
+      }
+      await whatsapp.deleteSession(sessionId).catch(() => {});
+
+      const token = generateToken();
+
+      await upsertDevice({
+        token,
+        sessionId,
+        name: payload.name,
+        phone: payload.phone,
+        createdAt: new Date().toISOString(),
+      });
+
+      await addStoredSession(sessionId);
+
+      const pairingCode = await requestPairingCode(sessionId, payload.phone).catch(
+        (err: any) => {
+          throw new HTTPException(500, {
+            message: err?.message || "Failed to request pairing code",
+          });
+        }
+      );
+
+      return c.json({
+        status: true,
+        message: "pairing code generated",
+        data: {
+          device_name: payload.name || sessionId,
+          device: sessionId,
+          token,
+          pairing_code: pairingCode,
+        },
+      });
+    }
+  );
+
   app.post("/device/delete", async (c) => {
     const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
@@ -184,10 +242,13 @@ const createWaGatewayDeviceRouter = () => {
     const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
 
-    const existing = await whatsapp.getSessionById(sessionId);
-    if (existing) {
-      throw new HTTPException(400, { message: "Session already exist" });
+    const adapter = (whatsapp as any).adapter;
+    await deleteDeviceBySessionId(sessionId).catch(() => {});
+    await removeStoredSession(sessionId).catch(() => {});
+    if (adapter?.clearData) {
+      await adapter.clearData(sessionId).catch(() => {});
     }
+    await whatsapp.deleteSession(sessionId).catch(() => {});
 
     const qr = await new Promise<string | null>(async (r) => {
       await whatsapp.startSession(sessionId, {
@@ -252,6 +313,13 @@ const createWaGatewayLegacyRouter = () => {
       text: parsed.data.message,
       isGroup: truthy(parsed.data.isGroup),
     });
+    recordOutgoingMessage({
+      session: sessionId,
+      id: (response as any)?.key?.id,
+      to: parsed.data.phone,
+      preview: parsed.data.message,
+      category: "text",
+    });
 
     return c.json({
       status: true,
@@ -286,6 +354,13 @@ const createWaGatewayLegacyRouter = () => {
       media: image,
       isGroup: truthy(parsed.data.isGroup),
     });
+    recordOutgoingMessage({
+      session: sessionId,
+      id: (res as any)?.key?.id,
+      to: parsed.data.phone,
+      preview: parsed.data.caption || "[image]",
+      category: "image",
+    });
     return c.json({
       status: true,
       message: "Success",
@@ -307,6 +382,13 @@ const createWaGatewayLegacyRouter = () => {
       text: body.caption || body.message,
       media: video,
       isGroup: truthy(body.isGroup),
+    });
+    recordOutgoingMessage({
+      session: sessionId,
+      id: (res as any)?.key?.id,
+      to: phone,
+      preview: body.caption || body.message || "[video]",
+      category: "video",
     });
     return c.json({
       status: true,
@@ -332,6 +414,13 @@ const createWaGatewayLegacyRouter = () => {
       filename,
       isGroup: truthy(body.isGroup),
     });
+    recordOutgoingMessage({
+      session: sessionId,
+      id: (res as any)?.key?.id,
+      to: phone,
+      preview: body.caption || body.message || filename || "[document]",
+      category: "document",
+    });
     return c.json({
       status: true,
       message: "Success",
@@ -354,6 +443,13 @@ const createWaGatewayLegacyRouter = () => {
       asVoiceNote: truthy(body.ptt || body.asVoiceNote),
       isGroup: truthy(body.isGroup),
     } as any);
+    recordOutgoingMessage({
+      session: sessionId,
+      id: (res as any)?.key?.id,
+      to: phone,
+      preview: "[audio]",
+      category: "audio",
+    });
     return c.json({
       status: true,
       message: "Success",

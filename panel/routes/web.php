@@ -23,7 +23,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/sessions/{session}/webhook-test', [GatewayController::class, 'webhookTest'])->name('sessions.webhook_test');
     Route::get('/sessions/{session}/groups', [GatewayController::class, 'listGroups'])->name('sessions.groups');
     Route::get('/sessions/{session}/message-status', [GatewayController::class, 'messageStatuses'])->name('sessions.message_status');
+    Route::post('/sessions/{session}/test-send', [GatewayController::class, 'testSendMessage'])->name('sessions.test_send');
+    Route::get('/devices/manage', [GatewayController::class, 'deviceManagement'])->name('devices.manage');
     Route::post('/devices', [GatewayController::class, 'createDevice'])->name('devices.create');
+    Route::post('/devices/create-json', [GatewayController::class, 'createDeviceJson'])->name('devices.create_json');
     Route::post('/devices/{device}/delete', [GatewayController::class, 'deleteDevice'])->name('devices.delete');
     Route::get('/devices/status', [GatewayController::class, 'deviceStatus'])->name('devices.status');
     Route::post('/server/start', [GatewayController::class, 'startServer'])->name('server.start');

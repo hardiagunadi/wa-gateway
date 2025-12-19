@@ -1,6 +1,11 @@
 import axios from "axios";
 import type { MessageReceived, MessageUpdated } from "wa-multi-session";
-import { SQLiteAdapter, Whatsapp } from "wa-multi-session";
+import {
+  SQLiteAdapter,
+  Whatsapp,
+  startSessionWithPairingCode,
+  onPairingCode,
+} from "wa-multi-session";
 import {
   handleWebhookAudioMessage,
   handleWebhookDocumentMessage,
@@ -8,9 +13,14 @@ import {
   handleWebhookVideoMessage,
 } from "./webhooks/media";
 import { getSessionWebhookConfig } from "./session-config";
-import { setMessageStatus } from "./status-store";
+import { upsertMessageStatus } from "./status-store";
 import { getDeviceBySessionId } from "./wa-gateway/registry";
 import { findAutoreplyByKeyword } from "./wa-gateway/store";
+import { listStoredSessions, removeStoredSession } from "./session-store";
+import { deleteDeviceBySessionId } from "./wa-gateway/registry";
+import { waCredentialsDir } from "./wa-credentials";
+import fs from "fs/promises";
+import path from "path";
 
 const createWebhookClient = (apiKey?: string) =>
   axios.create({
@@ -153,11 +163,14 @@ async function onIncomingMessage(message: MessageReceived) {
 async function onMessageUpdated(update: MessageUpdated) {
   const id = update.key?.id;
   if (id) {
-    setMessageStatus({
+    const toJid = (update.key as any)?.remoteJid || null;
+    const to = typeof toJid === "string" ? toJid.replace(/@.*/, "") : undefined;
+    upsertMessageStatus({
       session: update.sessionId,
       id,
       status: update.messageStatus,
       updatedAt: new Date().toISOString(),
+      to,
       key: update.key,
       update,
     });
@@ -206,3 +219,110 @@ export const whatsapp = new Whatsapp({
   onMessageReceived: onIncomingMessage,
   onMessageUpdated,
 });
+
+export const requestPairingCode = async (
+  sessionId: string,
+  phoneNumber: string,
+  timeoutMs = 30000
+) => {
+  const phone = String(phoneNumber || "").trim();
+  if (!phone) throw new Error("Nomor telepon wajib diisi");
+
+  const cleanSession = async () => {
+    try {
+      const adapter = (whatsapp as any).adapter;
+      if (adapter?.clearData) {
+        await adapter.clearData(sessionId);
+      }
+      await whatsapp.deleteSession(sessionId);
+    } catch (err) {
+      console.error("Failed to cleanup pairing session", err);
+    }
+    await removeStoredSession(sessionId).catch(() => {});
+    await deleteDeviceBySessionId(sessionId).catch(() => {});
+    try {
+      const remaining = await listStoredSessions().catch(() => []);
+      if (!remaining || remaining.length === 0) {
+        const dbPath = path.join(waCredentialsDir, "database.db");
+        const dbShm = path.join(waCredentialsDir, "database.db-shm");
+        const dbWal = path.join(waCredentialsDir, "database.db-wal");
+        await fs.rm(dbPath, { force: true });
+        await fs.rm(dbShm, { force: true });
+        await fs.rm(dbWal, { force: true });
+      }
+    } catch (err) {
+      console.error("Failed to purge sqlite database", err);
+    }
+  };
+
+  const attempt = async () =>
+    await new Promise<string>(async (resolve, reject) => {
+      let timer: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        // reset listener to no-op to avoid leaking cross-requests
+        onPairingCode(() => {});
+      };
+
+      onPairingCode((sid, code) => {
+        if (sid !== sessionId) return;
+        cleanup();
+        resolve(code);
+      });
+
+      try {
+        const adapter = (whatsapp as any).adapter;
+        if (adapter?.clearData) {
+          await adapter.clearData(sessionId).catch(() => {});
+        }
+        await whatsapp.deleteSession(sessionId).catch(() => {});
+        const res = await startSessionWithPairingCode(sessionId, {
+          phoneNumber: phone,
+        });
+
+        const directCode =
+          (res as any)?.pairingCode ||
+          (res as any)?.code ||
+          (typeof res === "string" ? res : null);
+        if (directCode) {
+          cleanup();
+          resolve(directCode);
+          return;
+        }
+
+        timer = setTimeout(() => {
+          cleanup();
+          reject(new Error("PAIRING_TIMEOUT"));
+        }, timeoutMs);
+      } catch (err) {
+        cleanup();
+        reject(err);
+      }
+    });
+
+  let lastError: any = null;
+  const maxAttempts = 2;
+  for (let i = 0; i < maxAttempts; i++) {
+    if (i > 0) {
+      await cleanSession();
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    try {
+      const code = await attempt();
+      return code;
+    } catch (err: any) {
+      lastError = err;
+      // If timeout, retry once; other errors break immediately.
+      const message = String(err?.message || "");
+      if (i === maxAttempts - 1 || !message.includes("TIMEOUT")) {
+        await cleanSession();
+        break;
+      }
+    }
+  }
+
+  throw new Error(
+    lastError?.message || "Pairing code timeout, coba ulangi beberapa saat."
+  );
+};

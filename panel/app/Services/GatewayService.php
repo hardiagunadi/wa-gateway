@@ -69,6 +69,17 @@ class GatewayService
         return $response->json() ?? [];
     }
 
+    public function createDeviceWithPairingCode(string $session, ?string $name = null): array
+    {
+        $response = $this->client()->timeout(80)->asForm()->post('/api/device/create-code', [
+            'phone' => $session,
+            'name' => $name,
+        ]);
+        $response->throw();
+
+        return $response->json('data') ?? [];
+    }
+
     public function logoutSession(string $session): void
     {
         $response = $this->client()->post('/session/logout', [
@@ -104,6 +115,18 @@ class GatewayService
 
         $data = $response->json('data');
         return is_array($data) ? $data : [];
+    }
+
+    public function sendTestMessage(string $session, string $to, string $text): array
+    {
+        $response = $this->client()->post('/message/send-text', [
+            'session' => $session,
+            'to' => $to,
+            'text' => $text,
+            'is_group' => false,
+        ]);
+        $response->throw();
+        return $response->json() ?? [];
     }
 
     public function health(): ?array

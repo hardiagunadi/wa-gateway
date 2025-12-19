@@ -4,7 +4,11 @@ import { requestValidator } from "../middlewares/validation.middleware";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
 import { whatsapp } from "../whatsapp";
-import { getMessageStatus, listMessageStatuses } from "../status-store";
+import {
+  getMessageStatus,
+  listMessageStatuses,
+  recordOutgoingMessage,
+} from "../status-store";
 
 export const createMessageController = () => {
   const sendMessageSchema = z.object({
@@ -94,6 +98,13 @@ export const createMessageController = () => {
           to: payload.to,
           text: payload.text,
           isGroup: payload.is_group,
+        });
+        recordOutgoingMessage({
+          session: payload.session,
+          id: (response as any)?.key?.id,
+          to: payload.to,
+          preview: payload.text,
+          category: "text",
         });
 
         return c.json({

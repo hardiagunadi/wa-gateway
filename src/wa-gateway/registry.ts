@@ -33,7 +33,22 @@ async function writeJson<T>(file: string, value: T) {
 
 export const listDevices = async (): Promise<DeviceRecord[]> => {
   const data = await readJson<DeviceRecord[]>(devicesPath, []);
-  return Array.isArray(data) ? data : [];
+  if (!Array.isArray(data)) return [];
+  const seenSession = new Set<string>();
+  const seenToken = new Set<string>();
+  const unique: DeviceRecord[] = [];
+  for (const row of data) {
+    const sid = (row as any)?.sessionId;
+    const tok = (row as any)?.token;
+    if ((sid && seenSession.has(sid)) || (tok && seenToken.has(tok))) continue;
+    if (sid) seenSession.add(sid);
+    if (tok) seenToken.add(tok);
+    unique.push(row as DeviceRecord);
+  }
+  if (unique.length !== data.length) {
+    await writeJson(devicesPath, unique);
+  }
+  return unique;
 };
 
 export const getDeviceByToken = async (
@@ -52,10 +67,11 @@ export const getDeviceBySessionId = async (
 
 export const upsertDevice = async (device: DeviceRecord) => {
   const devices = await listDevices();
-  const idx = devices.findIndex((d) => d.token === device.token);
-  if (idx >= 0) devices[idx] = device;
-  else devices.push(device);
-  await writeJson(devicesPath, devices);
+  let filtered = devices.filter(
+    (d) => d.sessionId !== device.sessionId && d.token !== device.token
+  );
+  filtered.push(device);
+  await writeJson(devicesPath, filtered);
 };
 
 export const deleteDeviceByToken = async (token: string) => {

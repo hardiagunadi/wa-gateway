@@ -4,67 +4,124 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profil - WA Gateway Panel</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.13/dist/tailwind.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css">
+    <style>
+        body {
+            background: radial-gradient(circle at 10% 20%, #e3f2fd 0, transparent 25%),
+                        radial-gradient(circle at 90% 0%, #ede9fe 0, transparent 22%),
+                        #f8fafc;
+        }
+        .glass-card {
+            backdrop-filter: blur(8px);
+            background: rgba(255,255,255,0.92);
+            border: 1px solid rgba(226,232,240,0.9);
+            box-shadow: 0 14px 38px rgba(15,23,42,0.08);
+        }
+        .form-control:focus {
+            box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.18);
+            border-color: #3b82f6;
+        }
+    </style>
 </head>
-<body class="min-h-screen bg-slate-100">
-    <div class="max-w-4xl mx-auto px-4 py-6 flex items-center justify-between">
-        <div>
-            <h1 class="text-2xl font-semibold text-slate-800">Profil</h1>
-            <p class="text-sm text-slate-500">Kelola password akun Anda.</p>
+<body>
+    <div class="container py-4">
+        <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+            <div class="mb-2">
+                <h1 class="h4 mb-1"><i class="fas fa-user-circle text-primary me-2"></i>Profil</h1>
+                <p class="text-muted mb-0">Kelola password akun Anda.</p>
+            </div>
+            <div class="btn-group">
+                <a href="{{ route('devices.manage') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-microchip me-1"></i> Device Management</a>
+                <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i> Dashboard</a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt me-1"></i> Logout</button>
+                </form>
+            </div>
         </div>
-        <div class="flex gap-3">
-            <a href="{{ route('dashboard') }}" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 hover:bg-slate-300 text-sm">Kembali ke Dashboard</a>
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button class="px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 text-sm">Logout</button>
-            </form>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card glass-card">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0"><i class="fas fa-key me-2 text-primary"></i>Ubah Password</h5>
+                    </div>
+                    <div class="card-body">
+                        @if(session('status'))
+                            <div class="alert alert-success alert-dismissible fade show">
+                                <i class="fas fa-check-circle me-1"></i>{{ session('status') }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        @endif
+
+                        <form method="POST" action="{{ route('profile.update') }}" class="needs-validation" novalidate>
+                            @csrf
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Username</label>
+                                <input type="text" value="{{ $user->name }}" disabled class="form-control bg-light">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Email</label>
+                                <input type="text" value="{{ $user->email }}" disabled class="form-control bg-light">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Password Lama</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white text-muted"><i class="fas fa-lock"></i></span>
+                                    <input type="password" name="current_password" required class="form-control" placeholder="Masukkan password lama">
+                                    <div class="invalid-feedback">Password lama wajib diisi.</div>
+                                </div>
+                                @error('current_password')
+                                    <small class="text-danger d-block mt-1">{{ $message }}</small>
+                                @enderror
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Password Baru</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-white text-muted"><i class="fas fa-shield-alt"></i></span>
+                                        <input type="password" name="password" required class="form-control" placeholder="Password baru">
+                                        <div class="invalid-feedback">Password baru wajib diisi.</div>
+                                    </div>
+                                    @error('password')
+                                        <small class="text-danger d-block mt-1">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Konfirmasi Password Baru</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-white text-muted"><i class="fas fa-check"></i></span>
+                                        <input type="password" name="password_confirmation" required class="form-control" placeholder="Ulangi password baru">
+                                        <div class="invalid-feedback">Konfirmasi password wajib diisi.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary w-100"><i class="fas fa-save me-1"></i> Simpan Perubahan</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="max-w-2xl mx-auto bg-white shadow rounded-2xl p-6 border border-slate-200">
-        @if(session('status'))
-            <div class="mb-4 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-sm">
-                {{ session('status') }}
-            </div>
-        @endif
-
-        <form method="POST" action="{{ route('profile.update') }}" class="space-y-4">
-            @csrf
-            <div>
-                <label class="block text-xs text-slate-500 mb-1">Username</label>
-                <input type="text" value="{{ $user->name }}" disabled class="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 text-slate-600">
-            </div>
-            <div>
-                <label class="block text-xs text-slate-500 mb-1">Email</label>
-                <input type="text" value="{{ $user->email }}" disabled class="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 text-slate-600">
-            </div>
-
-            <div>
-                <label class="block text-xs text-slate-500 mb-1">Password Lama</label>
-                <input type="password" name="current_password" required class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                @error('current_password')
-                    <p class="text-xs text-rose-600 mt-1">{{ $message }}</p>
-                @enderror
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs text-slate-500 mb-1">Password Baru</label>
-                    <input type="password" name="password" required class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                    @error('password')
-                        <p class="text-xs text-rose-600 mt-1">{{ $message }}</p>
-                    @enderror
-                </div>
-                <div>
-                    <label class="block text-xs text-slate-500 mb-1">Konfirmasi Password Baru</label>
-                    <input type="password" name="password_confirmation" required class="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                </div>
-            </div>
-
-            <button class="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition">
-                Simpan Perubahan
-            </button>
-        </form>
-    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (() => {
+      const forms = document.querySelectorAll('.needs-validation');
+      Array.from(forms).forEach((form) => {
+        form.addEventListener('submit', (event) => {
+          if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          form.classList.add('was-validated');
+        }, false);
+      });
+    })();
+    </script>
 </body>
 </html>

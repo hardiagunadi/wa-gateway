@@ -46,6 +46,17 @@ class GatewayController extends Controller
             $npmStatus['source'] = 'inferred';
         }
 
+        $logTail = null;
+        $logFile = $npmStatus['logFile'] ?? null;
+        if (is_string($logFile) && $logFile !== '' && is_readable($logFile) && filesize($logFile) > 0) {
+            try {
+                $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+                $logTail = implode("\n", array_slice($lines, -30));
+            } catch (Throwable) {
+                $logTail = null;
+            }
+        }
+
         return view('dashboard', [
             'sessions' => $sessions,
             'health' => $health,
@@ -53,10 +64,54 @@ class GatewayController extends Controller
             'sessionStatuses' => $sessionStatuses,
             'qrData' => session('qr'),
             'qrSession' => session('qrSession'),
+            'pairingCode' => session('pairingCode'),
+            'pairingSession' => session('pairingSession'),
             'statusMessage' => session('status'),
             'autoRefresh' => session('autoRefresh'),
             'errorsBag' => $request->session()->get('errors'),
             'npmStatus' => $npmStatus,
+            'sessionConfigs' => $sessionConfigs,
+            'gatewayConfig' => [
+                'base' => config('gateway.base_url'),
+                'key' => config('gateway.api_key'),
+            ],
+            'logTail' => $logTail,
+        ]);
+    }
+
+    public function deviceManagement(Request $request): View
+    {
+        $gateway = $this->gateway();
+        $sessions = [];
+        $health = null;
+        $apiError = null;
+        $sessionConfigs = [];
+        $sessionStatuses = [];
+
+        try {
+            $sessions = $gateway->listSessions();
+            $health = $gateway->health();
+            $sessionStatuses = $gateway->listSessionStatuses();
+        } catch (Throwable $e) {
+            $apiError = $e->getMessage();
+        }
+
+        $store = $this->sessionConfigStore();
+        foreach ($sessions as $session) {
+            $sessionConfigs[$session] = $store->get($session);
+        }
+
+        return view('devices', [
+            'sessions' => $sessions,
+            'health' => $health,
+            'apiError' => $apiError,
+            'sessionStatuses' => $sessionStatuses,
+            'qrData' => session('qr'),
+            'qrSession' => session('qrSession'),
+            'pairingCode' => session('pairingCode'),
+            'pairingSession' => session('pairingSession'),
+            'statusMessage' => session('status'),
+            'errorsBag' => $request->session()->get('errors'),
             'sessionConfigs' => $sessionConfigs,
             'gatewayConfig' => [
                 'base' => config('gateway.base_url'),
@@ -70,12 +125,13 @@ class GatewayController extends Controller
         $data = $request->validate([
             'device_name' => ['required', 'string'],
             'device_phone' => ['required', 'string'],
+            'mode' => ['nullable', 'string'],
         ]);
 
         $sessionId = preg_replace('/\s+/', '', trim($data['device_phone'] ?? ''));
         if (!$sessionId) {
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->withErrors(['device' => 'Nomor WA device tidak valid.']);
         }
 
@@ -84,9 +140,26 @@ class GatewayController extends Controller
         $hasConfig = is_array($existingConfig) && count($existingConfig) > 0;
 
         if ($hasConfig) {
-            return redirect()
-                ->route('dashboard')
-                ->withErrors(['device' => 'Perangkat sudah ditambahkan, coba dengan nomor yang berbeda.']);
+            $store->delete($sessionId);
+            try {
+                $this->gateway()->deleteSession($sessionId);
+            } catch (Throwable) {
+                // ignore cleanup failure
+            }
+        }
+
+        // Pastikan session lama dibersihkan dulu sebelum membuat ulang.
+        try {
+            $this->gateway()->deleteSession($sessionId);
+        } catch (Throwable) {
+            // ignore
+        }
+
+        // Pastikan session lama dibersihkan dulu sebelum membuat ulang.
+        try {
+            $this->gateway()->deleteSession($sessionId);
+        } catch (Throwable) {
+            // abaikan jika tidak ada
         }
 
         // Jika device pernah dihapus dari panel tapi masih ada sisa session di gateway, bersihkan agar bisa dibuat ulang.
@@ -103,28 +176,123 @@ class GatewayController extends Controller
             'deviceName' => trim($data['device_name']),
         ]);
 
+        $mode = strtolower(trim($data['mode'] ?? 'qr'));
+
         try {
+            if ($mode === 'code') {
+                $resp = $this->gateway()->createDeviceWithPairingCode($sessionId, $data['device_name']);
+                $pairingCode = $resp['pairing_code'] ?? $resp['pairingCode'] ?? null;
+
+                return redirect()
+                    ->route('devices.manage')
+                    ->with([
+                        'status' => $pairingCode ? "Pairing code untuk {$sessionId}: {$pairingCode}" : "Pairing code dibuat.",
+                        'pairingCode' => $pairingCode,
+                        'pairingSession' => $sessionId,
+                    ]);
+            }
+
             $response = $this->gateway()->startSession($sessionId);
             $qr = $response['qr_image'] ?? $response['qrImage'] ?? $response['qr'] ?? null;
 
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->with([
                     'status' => $qr ? "Device {$sessionId} dibuat, scan QR di bawah." : "Device {$sessionId} berhasil tersambung.",
                     'qr' => $qr,
                     'qrSession' => $sessionId,
-                    'autoRefresh' => 'device-create',
+                    'autoRefresh' => null,
                 ]);
         } catch (Throwable $e) {
+            $store->delete($sessionId);
             $msg = $e->getMessage();
             if (str_contains($msg, 'Session already exist')) {
                 return redirect()
-                    ->route('dashboard')
+                    ->route('devices.manage')
                     ->withErrors(['device' => 'Perangkat sudah ditambahkan, coba dengan nomor yang berbeda.']);
             }
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->withErrors(['device' => $e->getMessage()]);
+        }
+    }
+
+    public function createDeviceJson(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'device_name' => ['required', 'string'],
+            'device_phone' => ['required', 'string'],
+            'mode' => ['nullable', 'string'],
+        ]);
+
+        $sessionId = preg_replace('/\s+/', '', trim($data['device_phone'] ?? ''));
+        if (!$sessionId) {
+            return response()->json(['ok' => false, 'message' => 'Nomor WA device tidak valid.'], 400);
+        }
+
+        $store = $this->sessionConfigStore();
+        $existingConfig = $store->get($sessionId);
+        $hasConfig = is_array($existingConfig) && count($existingConfig) > 0;
+
+        if ($hasConfig) {
+            $store->delete($sessionId);
+            try {
+                $this->gateway()->deleteSession($sessionId);
+            } catch (Throwable) {
+                // ignore cleanup failure
+            }
+        }
+
+        try {
+            $sessions = $this->gateway()->listSessions();
+            if (in_array($sessionId, $sessions, true)) {
+                $this->gateway()->deleteSession($sessionId);
+            }
+        } catch (Throwable) {
+            // ignore
+        }
+
+        $store->put($sessionId, [
+            'deviceName' => trim($data['device_name']),
+        ]);
+
+        $mode = strtolower(trim($data['mode'] ?? 'qr'));
+
+        try {
+            if ($mode === 'code') {
+                $resp = $this->gateway()->createDeviceWithPairingCode($sessionId, $data['device_name']);
+                $pairingCode = $resp['pairing_code'] ?? $resp['pairingCode'] ?? null;
+
+                return response()->json([
+                    'ok' => true,
+                    'data' => [
+                        'device_name' => $data['device_name'],
+                        'device' => $sessionId,
+                        'pairing_code' => $pairingCode,
+                    ],
+                ]);
+            }
+
+            $response = $this->gateway()->startSession($sessionId);
+            $qr = $response['qr_image'] ?? $response['qrImage'] ?? $response['qr'] ?? null;
+
+            return response()->json([
+                'ok' => true,
+                'data' => [
+                    'device_name' => $data['device_name'],
+                    'device' => $sessionId,
+                    'qr' => $qr,
+                    'qr_image' => $qr,
+                ],
+                ]);
+        } catch (Throwable $e) {
+            $msg = $e->getMessage();
+            $store->delete($sessionId);
+            if (str_contains($msg, 'Session already exist')) {
+                return response()->json(['ok' => false, 'message' => 'Perangkat sudah ditambahkan, coba dengan nomor yang berbeda.'], 400);
+            }
+            $status = str_contains(strtolower($msg), 'timeout') ? 408 : 500;
+            return response()->json(['ok' => false, 'message' => $msg], $status);
         }
     }
 
@@ -135,11 +303,11 @@ class GatewayController extends Controller
             $this->sessionConfigStore()->delete($device);
 
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->with('status', "Device {$device} dihapus.");
         } catch (Throwable $e) {
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->withErrors(['device' => $e->getMessage()]);
         }
     }
@@ -185,7 +353,7 @@ class GatewayController extends Controller
             $qr = $response['qr_image'] ?? $response['qrImage'] ?? $response['qr'] ?? null;
 
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->with([
                     'status' => $qr ? 'Session dibuat, scan QR di bawah untuk menghubungkan WhatsApp.' : 'Session berhasil tersambung.',
                     'qr' => $qr,
@@ -193,7 +361,7 @@ class GatewayController extends Controller
                 ]);
         } catch (Throwable $e) {
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->withErrors(['session' => $e->getMessage()]);
         }
     }
@@ -209,7 +377,7 @@ class GatewayController extends Controller
             $qr = $response['qr_image'] ?? $response['qrImage'] ?? $response['qr'] ?? null;
 
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->with([
                     'status' => $qr ? 'Perangkat direstart, scan QR di bawah jika diperlukan.' : 'Perangkat sedang mencoba menghubungkan kembali.',
                     'qr' => $qr,
@@ -217,7 +385,7 @@ class GatewayController extends Controller
                 ]);
         } catch (Throwable $e) {
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->withErrors(['session' => $e->getMessage()]);
         }
     }
@@ -232,6 +400,21 @@ class GatewayController extends Controller
         }
     }
 
+    public function testSendMessage(Request $request, string $session): JsonResponse
+    {
+        $data = $request->validate([
+            'phone' => ['required', 'string'],
+        ]);
+
+        try {
+            $text = "aplikasi berjalan lancar dan perangkat {$session} berjalan normal. id_device: #6285158663803";
+            $res = $this->gateway()->sendTestMessage($session, trim($data['phone']), $text);
+            return response()->json(['ok' => true, 'data' => $res]);
+        } catch (Throwable $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function closeSession(string $session): RedirectResponse
     {
         try {
@@ -239,11 +422,11 @@ class GatewayController extends Controller
             $this->sessionConfigStore()->delete($session);
 
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->with('status', "Session {$session} ditutup.");
         } catch (Throwable $e) {
             return redirect()
-                ->route('dashboard')
+                ->route('devices.manage')
                 ->withErrors(['session' => $e->getMessage()]);
         }
     }
@@ -295,7 +478,7 @@ class GatewayController extends Controller
         $store->put($session, $config);
 
         return redirect()
-            ->route('dashboard')
+            ->route('devices.manage')
             ->with('status', "Konfigurasi webhook untuk {$session} disimpan.");
     }
 

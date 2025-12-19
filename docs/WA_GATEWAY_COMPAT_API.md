@@ -51,6 +51,29 @@ Response:
 }
 ```
 
+### POST `/api/device/create-code`
+Membuat device + session dan mengembalikan pairing code (tanpa QR).
+
+Content-Type: `application/x-www-form-urlencoded`
+
+Fields:
+- `phone` (required) → nomor WA (sekaligus `sessionId`)
+- `name` (optional)
+
+Response:
+```json
+{
+  "status": true,
+  "message": "pairing code generated",
+  "data": {
+    "device_name": "My Device",
+    "device": "62812xxxx",
+    "token": "generated-token",
+    "pairing_code": "123-456"
+  }
+}
+```
+
 ### GET `/api/device/info`
 Mengambil status device berdasar token.
 

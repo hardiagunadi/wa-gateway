@@ -250,6 +250,12 @@ export const createSessionController = () => {
       }
 
       await removeStoredSession(sessionId);
+      try {
+        const { deleteDeviceBySessionId } = await import("../wa-gateway/registry");
+        await deleteDeviceBySessionId(sessionId);
+      } catch (err) {
+        console.error("Failed to remove registry entry", err);
+      }
 
       return c.json({ data: "success" });
     })
