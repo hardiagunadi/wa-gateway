@@ -56,12 +56,14 @@ async function buildIncomingPayload(message: MessageReceived) {
   const fromJid = message.key.remoteJid ?? null;
   const isGroup = Boolean(fromJid && fromJid.includes("@g.us"));
   const senderJid = (message.key as any)?.participant ?? fromJid;
+  const participantJid =
+    typeof senderJid === "string" ? senderJid.replace(/@.*/, "") : senderJid;
 
   return {
     session: message.sessionId,
     from: fromJid,
     sender: senderJid,
-    participant: senderJid,
+    participant: participantJid,
     isGroup,
     group: isGroup ? { id: fromJid } : null,
     message:
