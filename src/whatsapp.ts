@@ -27,6 +27,91 @@ const createWebhookClient = (apiKey?: string) =>
     headers: apiKey ? { key: apiKey } : {},
   });
 
+const sanitizeJidUser = (jid?: string | null) => {
+  if (!jid) return null;
+  const noDevice = jid.split(":")[0] || jid;
+  const user = noDevice.replace(/@.*/, "");
+  return user || null;
+};
+
+const normalizeSenderJid = (
+  candidateJid: string | null,
+  participant: string | null
+) => {
+  const participantUser = sanitizeJidUser(participant);
+  const candidateUser = sanitizeJidUser(candidateJid);
+
+  // If already full @s.whatsapp.net, keep it.
+  if (candidateJid && candidateJid.endsWith("@s.whatsapp.net")) {
+    return candidateJid;
+  }
+
+  // Prefer participant phone as full JID when available.
+  if (participantUser) {
+    return `${participantUser}@s.whatsapp.net`;
+  }
+
+  if (candidateUser) {
+    return `${candidateUser}@s.whatsapp.net`;
+  }
+
+  return candidateJid;
+};
+
+const resolveSenderInfo = async (message: MessageReceived) => {
+  const remoteJid = message.key.remoteJid;
+  const rawSender = (message.key as any)?.participant ?? remoteJid ?? null;
+  const isGroup = Boolean(remoteJid && remoteJid.includes("@g.us"));
+  const isLid = typeof rawSender === "string" && rawSender.endsWith("@lid");
+
+  if (!rawSender) {
+    return { senderJid: null, participant: null };
+  }
+
+  if (!isGroup || !isLid) {
+    const participant = sanitizeJidUser(rawSender);
+    const senderJid = normalizeSenderJid(rawSender, participant);
+    return { senderJid, participant };
+  }
+
+  // Attempt to resolve @lid sender to actual participant JID using group metadata.
+  try {
+    const session = await whatsapp.getSessionById(message.sessionId);
+    const sock: any = (session as any)?.sock;
+    if (sock?.groupMetadata) {
+      const meta = await sock.groupMetadata(remoteJid);
+      const match =
+        meta?.participants?.find(
+          (p: any) => p?.id === rawSender || p?.lid === rawSender
+        ) || null;
+
+      const resolvedJid =
+        (match?.id as string | undefined) ||
+        (typeof match?.phoneNumber === "string"
+          ? `${match.phoneNumber}@s.whatsapp.net`
+          : null) ||
+        rawSender;
+
+      const participant =
+        sanitizeJidUser(
+          typeof match?.phoneNumber === "string"
+            ? `${match.phoneNumber}@s.whatsapp.net`
+            : resolvedJid
+        ) ?? sanitizeJidUser(rawSender);
+
+      const senderJid = normalizeSenderJid(resolvedJid, participant);
+      return { senderJid, participant };
+    }
+  } catch (err) {
+    console.error("Failed to resolve participant for lid sender", err);
+  }
+
+  const participant = sanitizeJidUser(rawSender);
+  const senderJid = normalizeSenderJid(rawSender, participant);
+
+  return { senderJid, participant };
+};
+
 const normalizeBaseUrl = (baseUrl?: string) =>
   (baseUrl || "").trim().replace(/\/$/, "");
 
@@ -55,13 +140,13 @@ async function buildIncomingPayload(message: MessageReceived) {
 
   const fromJid = message.key.remoteJid ?? null;
   const isGroup = Boolean(fromJid && fromJid.includes("@g.us"));
-  const senderJid = (message.key as any)?.participant ?? fromJid;
+  const { senderJid, participant } = await resolveSenderInfo(message);
 
   return {
     session: message.sessionId,
     from: fromJid,
     sender: senderJid,
-    participant: senderJid,
+    participant,
     isGroup,
     group: isGroup ? { id: fromJid } : null,
     message:
