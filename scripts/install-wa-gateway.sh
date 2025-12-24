@@ -7,6 +7,8 @@ EXPECTED_USER="${EXPECTED_USER:-deploy}"
 PHP_VERSION="${PHP_VERSION:-8.3}"
 COMPOSER_NO_DEV="${COMPOSER_NO_DEV:-1}"
 RUN_NPM_AUDIT_FIX="${RUN_NPM_AUDIT_FIX:-0}"
+WEB_GROUP="${WEB_GROUP:-www-data}"
+WA_CREDENTIALS_DIR="${WA_CREDENTIALS_DIR:-${REPO_DIR}/wa_credentials}"
 
 log() { printf "\033[1;32m[+]\033[0m %s\n" "$*"; }
 warn() { printf "\033[1;33m[!]\033[0m %s\n" "$*"; }
@@ -215,6 +217,31 @@ setup_panel() {
   npm run build
 }
 
+set_permissions() {
+  local panel_dir="${REPO_DIR}/panel"
+  local esbuild_bin="${REPO_DIR}/node_modules/@esbuild/linux-x64/bin/esbuild"
+
+  log "Set permission storage + bootstrap/cache (panel)"
+  cd "$panel_dir"
+  mkdir -p storage bootstrap/cache
+  as_root chown -R "${EXPECTED_USER}:${WEB_GROUP}" storage bootstrap/cache
+  as_root chmod -R 775 storage bootstrap/cache
+  as_root find storage bootstrap/cache -type d -exec chmod g+s {} \;
+
+  log "Siapkan folder wa_credentials (${WA_CREDENTIALS_DIR})"
+  as_root mkdir -p "${WA_CREDENTIALS_DIR}"
+  as_root chown -R "${EXPECTED_USER}:${WEB_GROUP}" "${WA_CREDENTIALS_DIR}"
+  as_root chmod -R 2775 "${WA_CREDENTIALS_DIR}"
+  as_root find "${WA_CREDENTIALS_DIR}" -type f -exec chmod 664 {} \;
+
+  if [[ -f "${esbuild_bin}" ]]; then
+    log "Set executable bit untuk esbuild binary"
+    as_root chmod +x "${esbuild_bin}"
+  else
+    warn "Binary esbuild tidak ditemukan di ${esbuild_bin}, skip chmod +x."
+  fi
+}
+
 main() {
   require_deploy_user
   require_ubuntu
@@ -236,6 +263,7 @@ main() {
   install_gateway_deps
   prepare_panel_env
   setup_panel
+  set_permissions
 
   log "Installer selesai. Jalankan panel: php artisan serve --host 0.0.0.0 --port 8000 (di folder panel)"
   log "Jalankan gateway: node --import node_modules/tsx/dist/loader.mjs src/index.ts (di root repo) atau gunakan tombol Start di panel."
