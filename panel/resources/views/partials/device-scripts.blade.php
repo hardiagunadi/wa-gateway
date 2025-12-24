@@ -7,6 +7,7 @@
   const apiStatusUrl = '{{ route('api.status') }}';
   const deviceStatusUrl = '{{ route('devices.status') }}';
   const csrf = '{{ csrf_token() }}';
+  const tokenTargets = @json($tokenTargets ?? []);
 
   const apiStatusLabel = document.getElementById('api-status-label');
   const apiStatusDetail = document.getElementById('api-status-detail');
@@ -109,6 +110,12 @@
   const modalMessageLogEl = document.getElementById('modal-message-log');
   const modalMessageLog = modalMessageLogEl ? new bootstrap.Modal(modalMessageLogEl) : null;
   const messageLogContent = document.getElementById('message-log-content');
+  const modalSyncTokenEl = document.getElementById('modal-sync-token');
+  const modalSyncToken = modalSyncTokenEl ? new bootstrap.Modal(modalSyncTokenEl) : null;
+  const syncForm = document.getElementById('sync-token-form');
+  const syncTargetSelect = document.getElementById('sync-target');
+  const syncTargetInfo = document.getElementById('sync-target-info');
+  const syncDeviceLabel = document.getElementById('sync-device-label');
   const createForm = document.getElementById('create-form');
   const step1 = document.getElementById('create-step-1');
   const step2 = document.getElementById('create-step-2');
@@ -131,6 +138,38 @@
     div.innerHTML = `<span>${msg}</span><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
     alertPlaceholder.appendChild(div);
   };
+
+  const syncTargetsAvailable = tokenTargets && Object.keys(tokenTargets).length > 0;
+  if (syncTargetsAvailable && syncForm && modalSyncToken) {
+    const actionTemplate = syncForm.getAttribute('data-action-template') || '';
+    const updateSyncInfo = () => {
+      if (!syncTargetSelect || !syncTargetInfo) return;
+      const key = syncTargetSelect.value;
+      const target = tokenTargets[key] || {};
+      const envPath = target.env_path || '-';
+      const envKey = target.env_key || 'WA_GATEWAY_TOKEN';
+      const allowed = Array.isArray(target.allowed_sessions) && target.allowed_sessions.length > 0
+        ? target.allowed_sessions.join(', ')
+        : 'Semua device';
+      syncTargetInfo.textContent = `ENV: ${envPath} (${envKey}) • Allowed: ${allowed}`;
+    };
+
+    syncTargetSelect?.addEventListener('change', updateSyncInfo);
+    updateSyncInfo();
+
+    document.querySelectorAll('.btn-sync-token').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const session = btn.getAttribute('data-session') || '';
+        if (!session) return;
+        if (actionTemplate) {
+          syncForm.setAttribute('action', actionTemplate.replace('__device__', encodeURIComponent(session)));
+        }
+        if (syncDeviceLabel) syncDeviceLabel.textContent = session;
+        updateSyncInfo();
+        modalSyncToken.show();
+      });
+    });
+  }
 
   btnCreate?.addEventListener('click', () => {
     if (createForm) createForm.classList.remove('was-validated');

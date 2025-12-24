@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\GatewayService;
 use App\Services\NpmService;
 use App\Services\SessionConfigStore;
+use App\Services\DeviceRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
@@ -76,6 +77,7 @@ class GatewayController extends Controller
                 'key' => config('gateway.api_key'),
             ],
             'logTail' => $logTail,
+            'tokenTargets' => $this->tokenTargets(),
         ]);
     }
 
@@ -117,6 +119,7 @@ class GatewayController extends Controller
                 'base' => config('gateway.base_url'),
                 'key' => config('gateway.api_key'),
             ],
+            'tokenTargets' => $this->tokenTargets(),
         ]);
     }
 
@@ -515,6 +518,58 @@ class GatewayController extends Controller
         }
     }
 
+    public function syncToken(Request $request, string $device): RedirectResponse
+    {
+        $targets = $this->tokenTargets();
+        $targetKey = $request->input('target');
+
+        if (!is_string($targetKey) || !isset($targets[$targetKey])) {
+            return redirect()
+                ->route('dashboard')
+                ->withErrors(['device' => 'Target aplikasi tidak dikenal.']);
+        }
+
+        $target = $targets[$targetKey];
+        $envPath = $target['env_path'] ?? null;
+        $envKey = $target['env_key'] ?? 'WA_GATEWAY_TOKEN';
+        $allowed = $target['allowed_sessions'] ?? [];
+        $label = $target['label'] ?? ucfirst($targetKey);
+
+        if (!$envPath) {
+            return redirect()
+                ->route('dashboard')
+                ->withErrors(['device' => 'Lokasi .env target belum dikonfigurasi.']);
+        }
+
+        if (is_array($allowed) && count($allowed) > 0 && !in_array($device, $allowed, true)) {
+            return redirect()
+                ->route('dashboard')
+                ->withErrors(['device' => "Device {$device} tidak diizinkan untuk target {$label}."]);
+        }
+
+        $registryPath = config('gateway.registry_path');
+        $registry = new DeviceRegistry($registryPath);
+        $token = $registry->getTokenBySession($device);
+
+        if (!$token) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['device' => "Token untuk device {$device} tidak ditemukan di registry."]);
+        }
+
+        try {
+            $this->writeEnvValue($envPath, $envKey, $token);
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['device' => "Gagal menyimpan token ke {$envPath}: " . $e->getMessage()]);
+        }
+
+        return redirect()
+            ->route('devices.manage')
+            ->with('status', "Token {$envKey} untuk {$label} diperbarui dari device {$device}.");
+    }
+
     public function apiStatus(): JsonResponse
     {
         try {
@@ -658,6 +713,54 @@ class GatewayController extends Controller
     private function sessionConfigStore(): SessionConfigStore
     {
         return new SessionConfigStore(config('gateway.session_config_path'));
+    }
+
+    private function tokenTargets(): array
+    {
+        $targets = config('gateway.token_targets', []);
+        if (!is_array($targets)) {
+            return [];
+        }
+
+        // Only expose configured targets with env path defined.
+        return array_filter($targets, function ($target) {
+            return is_array($target) && !empty($target['env_path']);
+        });
+    }
+
+    private function writeEnvValue(string $envPath, string $key, string $value): void
+    {
+        if (!is_file($envPath)) {
+            throw new RuntimeException("File .env tidak ditemukan: {$envPath}");
+        }
+
+        if (!is_writable($envPath)) {
+            throw new RuntimeException("File .env tidak dapat ditulis: {$envPath}");
+        }
+
+        $keyPrefix = "{$key}=";
+        $lines = preg_split('/\r\n|\r|\n/', file_get_contents($envPath));
+        if ($lines === false) {
+            throw new RuntimeException('Gagal membaca file .env');
+        }
+
+        $updated = [];
+        $replaced = false;
+        foreach ($lines as $line) {
+            if (str_starts_with($line, $keyPrefix)) {
+                $updated[] = "{$key}={$value}";
+                $replaced = true;
+            } elseif ($line !== '') {
+                $updated[] = $line;
+            }
+        }
+
+        if (!$replaced) {
+            $updated[] = "{$key}={$value}";
+        }
+
+        $content = implode(PHP_EOL, $updated) . PHP_EOL;
+        file_put_contents($envPath, $content);
     }
 
     /**

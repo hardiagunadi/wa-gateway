@@ -96,6 +96,45 @@
         </div>
     </div>
 
+    @if(!empty($tokenTargets))
+        <div class="modal fade" id="modal-sync-token" tabindex="-1" aria-labelledby="modalSyncTokenLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalSyncTokenLabel">Sync WA_GATEWAY_TOKEN</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form id="sync-token-form" method="POST" data-action-template="{{ url('/devices/__device__/sync-token') }}">
+                        @csrf
+                        <div class="modal-body">
+                            <p class="text-muted small mb-2">Kirim token dari <code>device-registry.json</code> ke .env aplikasi tujuan.</p>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">Device</label>
+                                <div class="form-control-plaintext fw-semibold" id="sync-device-label"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label for="sync-target" class="form-label text-muted small mb-1">Target aplikasi</label>
+                                <select id="sync-target" name="target" class="form-select">
+                                    @foreach($tokenTargets as $key => $target)
+                                        <option value="{{ $key }}">{{ $target['label'] ?? ucfirst($key) }}</option>
+                                    @endforeach
+                                </select>
+                                <p id="sync-target-info" class="text-muted small mt-1 mb-0"></p>
+                            </div>
+                            <div class="alert alert-warning small mb-0">
+                                Pastikan target benar agar token tidak terkirim ke aplikasi lain.
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success btn-sm">Sync Token</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="modal fade" id="modal-message-log" tabindex="-1" aria-labelledby="modalLogLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
             <div class="modal-content border-0 shadow-lg">

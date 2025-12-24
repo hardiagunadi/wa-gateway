@@ -160,6 +160,9 @@
                             <button type="button" class="btn-open-settings btn btn-warning btn-sm text-white" data-session="{{ $session }}" title="Settings" aria-label="Settings"><i class="fas fa-cog"></i></button>
                             <button type="button" class="btn-message-log btn btn-primary btn-sm text-white" data-session="{{ $session }}" title="Message Status Log" aria-label="Message Status Log"><i class="fas fa-list"></i></button>
                             <button type="button" class="btn-group-finder btn btn-info btn-sm text-white" data-session="{{ $session }}" title="Group ID Finder" aria-label="Group ID Finder"><i class="fas fa-users"></i></button>
+                            @if(!empty($tokenTargets))
+                                <button type="button" class="btn-sync-token btn btn-success btn-sm text-white" data-session="{{ $session }}" title="Sync WA_GATEWAY_TOKEN" aria-label="Sync WA_GATEWAY_TOKEN"><i class="fas fa-key"></i></button>
+                            @endif
                             <form method="POST" action="{{ route('devices.delete', $session) }}" onsubmit="return confirm('Hapus device {{ $session }}?');" class="inline">
                                 @csrf
                                 <button class="btn btn-danger btn-sm" title="Delete" aria-label="Delete"><i class="fas fa-trash"></i></button>
