@@ -78,6 +78,7 @@ class GatewayController extends Controller
             ],
             'logTail' => $logTail,
             'tokenTargets' => $this->tokenTargets(),
+            'permissionWarnings' => $this->permissionWarnings(),
         ]);
     }
 
@@ -120,6 +121,7 @@ class GatewayController extends Controller
                 'key' => config('gateway.api_key'),
             ],
             'tokenTargets' => $this->tokenTargets(),
+            'permissionWarnings' => $this->permissionWarnings(),
         ]);
     }
 
@@ -713,6 +715,52 @@ class GatewayController extends Controller
     private function sessionConfigStore(): SessionConfigStore
     {
         return new SessionConfigStore(config('gateway.session_config_path'));
+    }
+
+    private function permissionWarnings(): array
+    {
+        $warnings = [];
+        $user = function_exists('get_current_user') ? get_current_user() : 'web user';
+
+        $sessionConfig = config('gateway.session_config_path');
+        $registryPath = config('gateway.registry_path');
+        $waCredentialsDir = $sessionConfig ? dirname($sessionConfig) : null;
+        $mediaDir = dirname(base_path()) . DIRECTORY_SEPARATOR . 'media';
+        $targetEnv = config('gateway.token_targets.jadwal.env_path') ?? null;
+
+        $checkWritableFile = function (?string $path, string $label) use (&$warnings, $user) {
+            if (!$path) {
+                return;
+            }
+            if (!file_exists($path)) {
+                $warnings[] = "{$label} belum ada di {$path}. Pastikan {$user} dapat membuatnya (chown/chmod).";
+                return;
+            }
+            if (!is_writable($path)) {
+                $warnings[] = "{$label} tidak dapat ditulis ({$path}). Beri izin tulis untuk {$user}.";
+            }
+        };
+
+        $checkDir = function (?string $path, string $label) use (&$warnings, $user) {
+            if (!$path) {
+                return;
+            }
+            if (!is_dir($path)) {
+                $warnings[] = "{$label} belum ada di {$path}. Buat folder dan pastikan {$user} bisa menulis.";
+                return;
+            }
+            if (!is_writable($path)) {
+                $warnings[] = "{$label} tidak dapat ditulis ({$path}). Beri izin tulis untuk {$user}.";
+            }
+        };
+
+        $checkDir($waCredentialsDir, 'Folder wa_credentials');
+        $checkWritableFile($sessionConfig, 'File session-config.json');
+        $checkWritableFile($registryPath, 'File device-registry.json');
+        $checkDir($mediaDir, 'Folder media');
+        $checkWritableFile($targetEnv, 'File .env target sinkron token');
+
+        return $warnings;
     }
 
     private function tokenTargets(): array

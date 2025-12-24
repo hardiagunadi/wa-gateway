@@ -102,6 +102,17 @@
                             </ul>
                         </div>
                     @endif
+                    @if(!empty($permissionWarnings))
+                        <div class="alert alert-warning alert-dismissible fade show">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Beberapa izin/berkas perlu dicek agar non-root bisa jalan:
+                            <ul class="mb-0 pl-3">
+                                @foreach ($permissionWarnings as $warn)
+                                    <li>{{ $warn }}</li>
+                                @endforeach
+                            </ul>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    @endif
 
                     <div class="row">
                         <div class="col-lg-6 mb-3">

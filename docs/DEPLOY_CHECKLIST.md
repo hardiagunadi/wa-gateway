@@ -34,6 +34,10 @@ Panduan ringkas supaya setup production (mis. `/var/www/wa-gateway`) tidak ada l
   - file log Node (`npm.log` dari status panel)
   bisa ditulis oleh user service.
 - Jika memindahkan path ke luar `/home/wa-gateway`, perbarui semua env path di atas agar menunjuk lokasi baru.
+- **Non-root-friendly**: panel akan menampilkan peringatan jika folder/file kunci tidak bisa ditulis oleh user yang sedang berjalan. Jika muncul:
+  - `wa_credentials`/`session-config.json`/`device-registry.json` → `chown -R <user>:<group> /var/www/wa_credentials` lalu pastikan `chmod 750/640` sesuai kebutuhan.
+  - `media` → pastikan user service bisa menulis file media.
+  - `.env target` sinkron token (`JADWAL_ENV_PATH`) → pastikan file ada dan writable.
 
 ## 4) Start layanan
 - Install dependencies: `npm install` (atau pnpm/yarn) di workdir Node; `composer install` di panel.
