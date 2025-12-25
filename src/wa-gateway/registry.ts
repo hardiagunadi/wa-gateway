@@ -17,6 +17,7 @@ export type DeviceRecord = {
    */
   token: string;
   apiKey?: string;
+  masterkey?: string;
   sessionId: string;
   name?: string;
   phone?: string;
@@ -45,12 +46,31 @@ async function writeJson<T>(file: string, value: T) {
 }
 
 export const listDevices = async (): Promise<DeviceRecord[]> => {
-  const data = await readJson<DeviceRecord[]>(devicesPath, []);
-  if (!Array.isArray(data)) return [];
+  const data = await readJson<unknown>(devicesPath, []);
+  const rows: DeviceRecord[] = Array.isArray(data)
+    ? (data as DeviceRecord[])
+    : data && typeof data === "object"
+    ? Object.entries(data).map(([sessionId, row]) => {
+        const token = resolveToken(row as any) || "";
+        return {
+          token,
+          apiKey: token || (row as any)?.apiKey,
+          masterkey: (row as any)?.masterkey,
+          sessionId: (row as any)?.sessionId || sessionId,
+          name: (row as any)?.name || (row as any)?.deviceName,
+          phone: (row as any)?.phone,
+          webhookUrl: (row as any)?.webhookUrl,
+          trackingBaseUrl: (row as any)?.trackingBaseUrl,
+          createdAt:
+            (row as any)?.createdAt || new Date().toISOString(),
+        };
+      })
+    : [];
+
   const seenSession = new Set<string>();
   const seenToken = new Set<string>();
   const unique: DeviceRecord[] = [];
-  for (const row of data) {
+  for (const row of rows) {
     const sid = (row as any)?.sessionId;
     const tok = resolveToken(row);
     if ((sid && seenSession.has(sid)) || (tok && seenToken.has(tok))) continue;
@@ -62,7 +82,7 @@ export const listDevices = async (): Promise<DeviceRecord[]> => {
       apiKey: tok || (row as any)?.apiKey || undefined,
     });
   }
-  if (unique.length !== data.length) {
+  if (unique.length !== rows.length) {
     await writeJson(devicesPath, unique);
   }
   return unique;
@@ -96,6 +116,7 @@ export const upsertDevice = async (device: DeviceRecord) => {
     ...device,
     token: tok,
     apiKey: tok,
+    masterkey: device.masterkey,
   });
   await writeJson(devicesPath, filtered);
 };
