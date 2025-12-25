@@ -49,6 +49,27 @@ class DeviceRegistry
         $raw = file_get_contents($this->path);
         $decoded = json_decode($raw, true);
 
-        return is_array($decoded) ? $decoded : [];
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        // Support both array-of-records and object keyed by sessionId.
+        if (array_is_list($decoded)) {
+            return $decoded;
+        }
+
+        $list = [];
+        foreach ($decoded as $sessionId => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $list[] = array_merge(
+                ['sessionId' => is_string($row['sessionId'] ?? null) && $row['sessionId'] !== '' ? $row['sessionId'] : $sessionId],
+                $row
+            );
+        }
+
+        return $list;
     }
 }
