@@ -572,36 +572,6 @@ class GatewayController extends Controller
             ->with('status', "Token {$envKey} untuk {$label} diperbarui dari device {$device}.");
     }
 
-    public function updateGatewayBase(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'base_url' => ['required', 'string'],
-            'api_key' => ['nullable', 'string'],
-        ]);
-
-        $baseUrl = trim($data['base_url']);
-        $apiKey = isset($data['api_key']) ? trim((string) $data['api_key']) : null;
-        $envPath = base_path('.env');
-
-        if ($baseUrl === '') {
-            return redirect()->route('devices.manage')->withErrors(['gateway' => 'Base URL tidak boleh kosong.']);
-        }
-
-        try {
-            $this->writeEnvValue($envPath, 'WA_GATEWAY_BASE', $baseUrl);
-            if ($apiKey !== null && $apiKey !== '') {
-                $this->writeEnvValue($envPath, 'WA_GATEWAY_KEY', $apiKey);
-            }
-            return redirect()
-                ->route('devices.manage')
-                ->with('status', 'Gateway base URL diperbarui. Restart panel jika perlu.');
-        } catch (Throwable $e) {
-            return redirect()
-                ->route('devices.manage')
-                ->withErrors(['gateway' => 'Gagal menyimpan base URL: ' . $e->getMessage()]);
-        }
-    }
-
     public function apiStatus(): JsonResponse
     {
         try {
@@ -679,53 +649,6 @@ class GatewayController extends Controller
             }
 
             $resp = $client->post($baseUrl . $endpoint, $payload);
-            $ok = $resp->successful();
-
-            return response()->json([
-                'ok' => $ok,
-                'status' => $resp->status(),
-                'message' => $ok
-                    ? "OK ({$resp->status()})"
-                    : "FAILED ({$resp->status()}): " . substr((string) $resp->body(), 0, 200),
-            ]);
-        } catch (Throwable $e) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'FAILED: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    public function webhookTestSaved(string $session): JsonResponse
-    {
-        $store = $this->sessionConfigStore();
-        $existing = $store->get($session);
-        $baseUrl = rtrim(trim($existing['webhookBaseUrl'] ?? ''), '/');
-        $apiKey = trim((string) ($existing['apiKey'] ?? ''));
-
-        if ($baseUrl === '') {
-            return response()->json(['ok' => false, 'message' => 'Webhook URL belum disimpan untuk device ini.'], 400);
-        }
-
-        $payload = [
-            'session' => $session,
-            'from' => 'test',
-            'message' => 'test webhook (saved config)',
-            'media' => [
-                'image' => null,
-                'video' => null,
-                'document' => null,
-                'audio' => null,
-            ],
-        ];
-
-        try {
-            $client = Http::timeout(8)->acceptJson()->asJson();
-            if ($apiKey !== '') {
-                $client = $client->withHeaders(['key' => $apiKey]);
-            }
-
-            $resp = $client->post($baseUrl . '/message', $payload);
             $ok = $resp->successful();
 
             return response()->json([
