@@ -88,6 +88,35 @@
             </div>
         @endif
 
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+                    <div>
+                        <h6 class="mb-1 fw-semibold"><i class="fas fa-network-wired me-2 text-primary"></i>Gateway Connection</h6>
+                        <p class="text-muted small mb-0">Ubah base URL (beserta port) yang dipakai panel ke WA Gateway.</p>
+                    </div>
+                </div>
+                <form class="row g-2" method="POST" action="{{ route('gateway.update_base') }}">
+                    @csrf
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small mb-1">Gateway Base URL (sertakan port)</label>
+                        <input type="text" name="base_url" class="form-control form-control-sm" value="{{ $gatewayConfig['base'] }}" placeholder="mis: http://localhost:5001 atau https://gateway.example.com:8443" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-muted small mb-1">Gateway API Key (opsional)</label>
+                        <input type="text" name="api_key" class="form-control form-control-sm" value="{{ $gatewayConfig['key'] }}">
+                        <p class="text-muted small mb-0 mt-1">Biarkan kosong untuk tidak mengubah key.</p>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-primary w-100 btn-sm"><i class="fas fa-save me-1"></i>Simpan</button>
+                    </div>
+                    <div class="col-12">
+                        <p class="text-muted small mb-0">Jika mengganti port Node (env <code>PORT</code>), pastikan service gateway di-restart dan arahkan base URL ke port baru.</p>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
             <div class="d-flex align-items-center">
                 <span class="btn btn-sm btn-primary disabled me-2"><i class="fas fa-plug"></i></span>
