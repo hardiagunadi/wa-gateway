@@ -17,18 +17,7 @@ const parseBasicAuth = (value: string | null) => {
   }
 };
 
-const parseBearer = (value: string | null) => {
-  if (!value) return null;
-  if (value.startsWith("Bearer ")) return value.slice(7).trim();
-  return value.trim();
-};
-
 const isAuthorized = (authHeader: string | null) => {
-  if (env.REGISTRY_TOKEN) {
-    const token = parseBearer(authHeader);
-    return token === env.REGISTRY_TOKEN;
-  }
-
   if (env.REGISTRY_USER || env.REGISTRY_PASS) {
     const creds = parseBasicAuth(authHeader);
     return (

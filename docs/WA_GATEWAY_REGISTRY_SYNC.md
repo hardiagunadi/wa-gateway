@@ -7,9 +7,7 @@ yang bisa dipakai aplikasi eksternal untuk sinkronisasi `token/apiKey`.
 
 - Registry token disimpan di: `wa_credentials/device-registry.json`
 - Endpoint baru (aman): `GET /admin/device-registry`
-- Auth opsi:
-  - Bearer token (`REGISTRY_TOKEN`)
-  - atau Basic auth (`REGISTRY_USER` + `REGISTRY_PASS`)
+- Auth opsi: Basic auth (`REGISTRY_USER` + `REGISTRY_PASS`)
 
 ## 1) Pastikan file registry tersedia
 
@@ -35,18 +33,6 @@ Contoh isi:
 
 ## 2) Atur autentikasi endpoint registry (disarankan)
 
-Pilih salah satu cara:
-
-### Opsi A: Bearer Token
-
-Tambahkan di file `.env` wa-gateway:
-
-```
-REGISTRY_TOKEN=token_rahasia
-```
-
-### Opsi B: Basic Auth
-
 Tambahkan di file `.env` wa-gateway:
 
 ```
@@ -67,15 +53,6 @@ pm2 restart wa-gateway
 Atau gunakan cara restart yang sesuai dengan server Anda.
 
 ## 4) Uji endpoint registry
-
-### Bearer Token
-
-```
-curl -H "Authorization: Bearer token_rahasia" \
-  http://localhost:5001/admin/device-registry
-```
-
-### Basic Auth
 
 ```
 curl -u admin:secret \
@@ -100,7 +77,7 @@ Kemudian menyinkronkan ke konfigurasi aplikasi.
 
 ## Troubleshooting
 
-- **401 Unauthorized**: cek token/basic auth di `.env`
+- **401 Unauthorized**: cek basic auth di `.env`
 - **Kosong**: pastikan device sudah dibuat dan registry file terisi
 - **Tidak update**: restart wa-gateway setelah perubahan `.env`
 

@@ -435,14 +435,10 @@ curl -X POST http://localhost:5001/api/v2/group/text \
         <li>Direkomendasikan pakai autentikasi.</li>
       </ul>
       <h3>Autentikasi</h3>
-      <p>Atur salah satu di <span class="kbd">.env</span> wa-gateway:</p>
-      <pre><code class="language-bash">REGISTRY_TOKEN=token_rahasia</code></pre>
-      <p>atau Basic Auth:</p>
+      <p>Atur Basic Auth di <span class="kbd">.env</span> wa-gateway:</p>
       <pre><code class="language-bash">REGISTRY_USER=admin
 REGISTRY_PASS=secret</code></pre>
       <h3>Contoh request</h3>
-      <pre><code class="language-bash">curl -H "Authorization: Bearer token_rahasia" \
-  http://localhost:5001/admin/device-registry</code></pre>
       <pre><code class="language-bash">curl -u admin:secret \
   http://localhost:5001/admin/device-registry</code></pre>
       <p class="small">Jika tidak di-set, endpoint terbuka (tidak disarankan untuk server publik).</p>

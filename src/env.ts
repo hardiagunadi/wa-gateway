@@ -10,7 +10,6 @@ export const env = z
       .default("5001")
       .transform((e) => Number(e)),
     WEBHOOK_BASE_URL: z.string().optional(),
-    REGISTRY_TOKEN: z.string().optional(),
     REGISTRY_USER: z.string().optional(),
     REGISTRY_PASS: z.string().optional(),
   })

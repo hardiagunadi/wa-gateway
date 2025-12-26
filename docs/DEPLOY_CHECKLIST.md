@@ -17,8 +17,7 @@ Panduan ringkas supaya setup production (mis. `/var/www/wa-gateway`) tidak ada l
   - `SESSION_CONFIG_PATH=/var/www/wa_credentials/session-config.json` (default: `dirname(base_path())/wa_credentials/session-config.json`)
   - `DEVICE_REGISTRY_PATH=/var/www/wa_credentials/device-registry.json` (default: `dirname(base_path())/wa_credentials/device-registry.json`)
   - `GATEWAY_NODE_ENV=/var/www/wa-gateway/.env` (opsional jika file .env node ada di lokasi lain)
-  - Registry auth (wajib di production): set salah satu
-    - `REGISTRY_TOKEN=token_rahasia` **atau**
+  - Registry auth (wajib di production):
     - `REGISTRY_USER=admin` dan `REGISTRY_PASS=secret`
   - Target sinkron token (Jadwal):
     - `JADWAL_ENV_PATH=/var/www/jadwal/.env` (lokasi .env target)
