@@ -30,10 +30,7 @@
 <div class="container d-flex align-items-center justify-content-center py-5">
     <div class="w-100" style="max-width: 420px;">
         <div class="text-center mb-4">
-            <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary mb-2" style="width:58px;height:58px;">
-                <i class="fas fa-whatsapp fa-lg"></i>
-            </div>
-            <div class="brand-text d-block">WA Gateway</div>
+              <div class="brand-text d-block">WA Gateway</div>
             <p class="text-muted mb-0">Control Panel</p>
         </div>
         <div class="card glass-card">
@@ -73,9 +70,7 @@
 
                 <div class="d-flex justify-content-between align-items-center mt-3">
                     <a class="small text-decoration-none" href="{{ route('password.request') }}">Lupa password?</a>
-                    <span class="text-muted small">Default: admin / admin</span>
                 </div>
-                <p class="mt-2 text-center text-muted small mb-0">Segera ganti password di halaman Profil.</p>
             </div>
         </div>
     </div>
