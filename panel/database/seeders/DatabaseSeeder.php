@@ -24,5 +24,7 @@ class DatabaseSeeder extends Seeder
                 'role' => 'admin',
             ]
         );
+
+        User::where('name', 'admin')->update(['role' => 'admin']);
     }
 }
