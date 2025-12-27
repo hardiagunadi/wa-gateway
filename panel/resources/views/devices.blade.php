@@ -92,7 +92,7 @@
         @endif
 
         @if(!empty($isAdmin))
-            <div class="card shadow-sm border-0 mb-3">
+            <!--div class="card shadow-sm border-0 mb-3">
                 <div class="card-body">
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
                         <div>
@@ -119,7 +119,7 @@
                         </div>
                     </form>
                 </div>
-            </div>
+            </div-->
 
             <div class="card shadow-sm border-0 mb-3">
                 <div class="card-body">
