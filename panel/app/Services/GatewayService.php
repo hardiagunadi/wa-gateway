@@ -129,6 +129,18 @@ class GatewayService
         return $response->json() ?? [];
     }
 
+    public function sendText(string $session, string $to, string $text): array
+    {
+        $response = $this->client()->post('/message/send-text', [
+            'session' => $session,
+            'to' => $to,
+            'text' => $text,
+            'is_group' => false,
+        ]);
+        $response->throw();
+        return $response->json() ?? [];
+    }
+
     public function health(): ?array
     {
         try {

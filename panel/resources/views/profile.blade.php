@@ -33,6 +33,9 @@
             </div>
             <div class="btn-group">
                 <a href="{{ route('devices.manage') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-microchip me-1"></i> Device Management</a>
+                @if(($user->role ?? '') === 'admin')
+                    <a href="{{ route('users.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-users me-1"></i> Users</a>
+                @endif
                 <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i> Dashboard</a>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
@@ -65,13 +68,27 @@
                                 <label class="form-label text-muted small">Email</label>
                                 <input type="text" value="{{ $user->email }}" disabled class="form-control bg-light">
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Role</label>
+                                <input type="text" value="{{ $user->role }}" disabled class="form-control bg-light text-capitalize">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Nomor WhatsApp</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white text-muted"><i class="fas fa-phone"></i></span>
+                                    <input type="text" name="phone" value="{{ old('phone', $user->phone) }}" class="form-control" placeholder="62812xxxxxxx">
+                                </div>
+                                @error('phone')
+                                    <small class="text-danger d-block mt-1">{{ $message }}</small>
+                                @enderror
+                                <small class="text-muted">Nomor ini dipakai untuk reset password via WhatsApp.</small>
+                            </div>
 
                             <div class="mb-3">
                                 <label class="form-label">Password Lama</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-white text-muted"><i class="fas fa-lock"></i></span>
-                                    <input type="password" name="current_password" required class="form-control" placeholder="Masukkan password lama">
-                                    <div class="invalid-feedback">Password lama wajib diisi.</div>
+                                    <input type="password" name="current_password" class="form-control" placeholder="Masukkan password lama jika ingin ganti">
                                 </div>
                                 @error('current_password')
                                     <small class="text-danger d-block mt-1">{{ $message }}</small>
@@ -83,8 +100,7 @@
                                     <label class="form-label">Password Baru</label>
                                     <div class="input-group">
                                         <span class="input-group-text bg-white text-muted"><i class="fas fa-shield-alt"></i></span>
-                                        <input type="password" name="password" required class="form-control" placeholder="Password baru">
-                                        <div class="invalid-feedback">Password baru wajib diisi.</div>
+                                        <input type="password" name="password" class="form-control" placeholder="Password baru (opsional)">
                                     </div>
                                     @error('password')
                                         <small class="text-danger d-block mt-1">{{ $message }}</small>
@@ -94,8 +110,7 @@
                                     <label class="form-label">Konfirmasi Password Baru</label>
                                     <div class="input-group">
                                         <span class="input-group-text bg-white text-muted"><i class="fas fa-check"></i></span>
-                                        <input type="password" name="password_confirmation" required class="form-control" placeholder="Ulangi password baru">
-                                        <div class="invalid-feedback">Konfirmasi password wajib diisi.</div>
+                                        <input type="password" name="password_confirmation" class="form-control" placeholder="Ulangi password baru">
                                     </div>
                                 </div>
                             </div>

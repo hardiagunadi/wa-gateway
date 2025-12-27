@@ -75,6 +75,9 @@
                 </div>
                 <div class="btn-group">
                     <a href="{{ route('devices.manage') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-microchip me-1"></i> Device Management</a>
+                    @if(!empty($isAdmin))
+                        <a href="{{ route('users.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-users me-1"></i> Users</a>
+                    @endif
                     <a href="{{ route('profile.show') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-user me-1"></i> Profil</a>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf

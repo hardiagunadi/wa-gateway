@@ -9,9 +9,10 @@ Panduan ringkas supaya setup production (mis. `/var/www/wa-gateway`) tidak ada l
 
 ## 2) Path & environment
 - Salin repo ke lokasi final (mis. `/var/www/wa-gateway`).
-- Set env panel (Laravel) di `.env`:
-  - `WA_GATEWAY_BASE=http://localhost:5001` (atau domain gateway)
-  - `WA_GATEWAY_KEY=` (isi jika gateway pakai key)
+  - Set env panel (Laravel) di `.env`:
+    - `WA_GATEWAY_BASE=http://localhost:5001` (atau domain gateway)
+    - `WA_GATEWAY_KEY=` (isi jika gateway pakai key)
+    - `PASSWORD_RESET_SESSIONS=session1,session2` (opsional; device yang boleh kirim reset password)
   - `NPM_SERVER_WORKDIR=/var/www/wa-gateway` (opsional, override default)
   - `NPM_SERVER_COMMAND=` (opsional, override command node)
   - `SESSION_CONFIG_PATH=/var/www/wa_credentials/session-config.json` (default: `dirname(base_path())/wa_credentials/session-config.json`)

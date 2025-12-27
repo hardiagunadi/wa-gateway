@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DeviceOwnership;
+use App\Models\User;
 use App\Services\GatewayService;
 use App\Services\NpmService;
 use App\Services\SessionConfigStore;
@@ -24,6 +26,7 @@ class GatewayController extends Controller
         $apiError = null;
         $sessionConfigs = [];
         $sessionStatuses = [];
+        $user = $request->user();
 
         try {
             $sessions = $gateway->listSessions();
@@ -32,6 +35,13 @@ class GatewayController extends Controller
         } catch (Throwable $e) {
             $apiError = $e->getMessage();
         }
+
+        $sessions = $this->filterSessionsForUser($sessions, $user);
+        $allowedSessions = array_flip($sessions);
+        $sessionStatuses = array_values(array_filter($sessionStatuses, function ($row) use ($allowedSessions) {
+            $id = is_array($row) ? ($row['id'] ?? null) : null;
+            return $id && isset($allowedSessions[$id]);
+        }));
 
         $npm = $this->npm();
         $store = $this->sessionConfigStore();
@@ -72,12 +82,12 @@ class GatewayController extends Controller
             'errorsBag' => $request->session()->get('errors'),
             'npmStatus' => $npmStatus,
             'sessionConfigs' => $sessionConfigs,
+            'isAdmin' => $this->isAdminUser($user),
             'gatewayConfig' => [
                 'base' => config('gateway.base_url'),
                 'key' => config('gateway.api_key'),
             ],
             'logTail' => $logTail,
-            'tokenTargets' => $this->tokenTargets(),
             'permissionWarnings' => $this->permissionWarnings(),
         ]);
     }
@@ -90,6 +100,7 @@ class GatewayController extends Controller
         $apiError = null;
         $sessionConfigs = [];
         $sessionStatuses = [];
+        $user = $request->user();
 
         try {
             $sessions = $gateway->listSessions();
@@ -98,6 +109,13 @@ class GatewayController extends Controller
         } catch (Throwable $e) {
             $apiError = $e->getMessage();
         }
+
+        $sessions = $this->filterSessionsForUser($sessions, $user);
+        $allowedSessions = array_flip($sessions);
+        $sessionStatuses = array_values(array_filter($sessionStatuses, function ($row) use ($allowedSessions) {
+            $id = is_array($row) ? ($row['id'] ?? null) : null;
+            return $id && isset($allowedSessions[$id]);
+        }));
 
         $store = $this->sessionConfigStore();
         foreach ($sessions as $session) {
@@ -116,11 +134,12 @@ class GatewayController extends Controller
             'statusMessage' => session('status'),
             'errorsBag' => $request->session()->get('errors'),
             'sessionConfigs' => $sessionConfigs,
+            'isAdmin' => $this->isAdminUser($user),
             'gatewayConfig' => [
                 'base' => config('gateway.base_url'),
                 'key' => config('gateway.api_key'),
             ],
-            'tokenTargets' => $this->tokenTargets(),
+            'resetSessions' => config('gateway.password_reset_sessions', []),
             'permissionWarnings' => $this->permissionWarnings(),
         ]);
     }
@@ -187,6 +206,7 @@ class GatewayController extends Controller
             if ($mode === 'code') {
                 $resp = $this->gateway()->createDeviceWithPairingCode($sessionId, $data['device_name']);
                 $pairingCode = $resp['pairing_code'] ?? $resp['pairingCode'] ?? null;
+                $this->recordDeviceOwnership($request->user(), $sessionId);
 
                 return redirect()
                     ->route('devices.manage')
@@ -199,6 +219,7 @@ class GatewayController extends Controller
 
             $response = $this->gateway()->startSession($sessionId);
             $qr = $response['qr_image'] ?? $response['qrImage'] ?? $response['qr'] ?? null;
+            $this->recordDeviceOwnership($request->user(), $sessionId);
 
             return redirect()
                 ->route('devices.manage')
@@ -267,6 +288,7 @@ class GatewayController extends Controller
             if ($mode === 'code') {
                 $resp = $this->gateway()->createDeviceWithPairingCode($sessionId, $data['device_name']);
                 $pairingCode = $resp['pairing_code'] ?? $resp['pairingCode'] ?? null;
+                $this->recordDeviceOwnership($request->user(), $sessionId);
 
                 return response()->json([
                     'ok' => true,
@@ -280,6 +302,7 @@ class GatewayController extends Controller
 
             $response = $this->gateway()->startSession($sessionId);
             $qr = $response['qr_image'] ?? $response['qrImage'] ?? $response['qr'] ?? null;
+            $this->recordDeviceOwnership($request->user(), $sessionId);
 
             return response()->json([
                 'ok' => true,
@@ -301,11 +324,18 @@ class GatewayController extends Controller
         }
     }
 
-    public function deleteDevice(string $device): RedirectResponse
+    public function deleteDevice(Request $request, string $device): RedirectResponse
     {
+        if (!$this->canManageSession($request->user(), $device)) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['device' => "Tidak punya akses ke device {$device}."]);
+        }
+
         try {
             $this->gateway()->deleteSession($device);
             $this->sessionConfigStore()->delete($device);
+            DeviceOwnership::where('session_id', $device)->delete();
 
             return redirect()
                 ->route('devices.manage')
@@ -317,7 +347,7 @@ class GatewayController extends Controller
         }
     }
 
-    public function deviceStatus(): JsonResponse
+    public function deviceStatus(Request $request): JsonResponse
     {
         try {
             $sessions = $this->gateway()->listSessions();
@@ -332,6 +362,7 @@ class GatewayController extends Controller
 
             $store = $this->sessionConfigStore();
             $devices = [];
+            $sessions = $this->filterSessionsForUser($sessions, $request->user());
             foreach ($sessions as $session) {
                 $devices[] = [
                     'id' => $session,
@@ -352,6 +383,12 @@ class GatewayController extends Controller
         $data = $request->validate([
             'session' => ['required', 'string'],
         ]);
+
+        if (!$this->canManageSession($request->user(), $data['session'])) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['session' => "Tidak punya akses ke session {$data['session']}."]);
+        }
 
         try {
             $response = $this->gateway()->startSession($data['session']);
@@ -377,6 +414,12 @@ class GatewayController extends Controller
             'session' => ['required', 'string'],
         ]);
 
+        if (!$this->canManageSession($request->user(), $data['session'])) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['session' => "Tidak punya akses ke session {$data['session']}."]);
+        }
+
         try {
             $response = $this->gateway()->restartSession($data['session']);
             $qr = $response['qr_image'] ?? $response['qrImage'] ?? $response['qr'] ?? null;
@@ -395,8 +438,12 @@ class GatewayController extends Controller
         }
     }
 
-    public function messageStatuses(string $session): JsonResponse
+    public function messageStatuses(Request $request, string $session): JsonResponse
     {
+        if (!$this->canManageSession($request->user(), $session)) {
+            return response()->json(['ok' => false, 'message' => 'Tidak punya akses ke session ini.'], 403);
+        }
+
         try {
             $data = $this->gateway()->listMessageStatuses($session);
             return response()->json(['ok' => true, 'data' => $data]);
@@ -411,6 +458,10 @@ class GatewayController extends Controller
             'phone' => ['required', 'string'],
         ]);
 
+        if (!$this->canManageSession($request->user(), $session)) {
+            return response()->json(['ok' => false, 'message' => 'Tidak punya akses ke session ini.'], 403);
+        }
+
         try {
             $text = "aplikasi berjalan lancar dan perangkat {$session} berjalan normal. id_device: #6285158663803";
             $res = $this->gateway()->sendTestMessage($session, trim($data['phone']), $text);
@@ -420,11 +471,18 @@ class GatewayController extends Controller
         }
     }
 
-    public function closeSession(string $session): RedirectResponse
+    public function closeSession(Request $request, string $session): RedirectResponse
     {
+        if (!$this->canManageSession($request->user(), $session)) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['session' => "Tidak punya akses ke session {$session}."]);
+        }
+
         try {
             $this->gateway()->deleteSession($session);
             $this->sessionConfigStore()->delete($session);
+            DeviceOwnership::where('session_id', $session)->delete();
 
             return redirect()
                 ->route('devices.manage')
@@ -438,6 +496,12 @@ class GatewayController extends Controller
 
     public function saveSessionConfig(Request $request, string $session): RedirectResponse
     {
+        if (!$this->canManageSession($request->user(), $session)) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['session' => "Tidak punya akses ke session {$session}."]);
+        }
+
         $data = $request->validate([
             'device_name' => ['nullable', 'string'],
             'webhook_base_url' => ['required', 'string'],
@@ -522,6 +586,12 @@ class GatewayController extends Controller
 
     public function syncToken(Request $request, string $device): RedirectResponse
     {
+        if (!$this->isAdminUser($request->user())) {
+            return redirect()
+                ->route('dashboard')
+                ->withErrors(['device' => 'Hanya admin yang boleh melakukan sinkronisasi token.']);
+        }
+
         $targets = $this->tokenTargets();
         $targetKey = $request->input('target');
 
@@ -572,6 +642,71 @@ class GatewayController extends Controller
             ->with('status', "Token {$envKey} untuk {$label} diperbarui dari device {$device}.");
     }
 
+    public function updateGatewayBase(Request $request): RedirectResponse
+    {
+        if (!$this->isAdminUser($request->user())) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['gateway' => 'Hanya admin yang boleh mengubah konfigurasi gateway.']);
+        }
+
+        $data = $request->validate([
+            'base_url' => ['required', 'string'],
+            'api_key' => ['nullable', 'string'],
+        ]);
+
+        $baseUrl = trim($data['base_url']);
+        $apiKey = isset($data['api_key']) ? trim((string) $data['api_key']) : null;
+        $envPath = base_path('.env');
+
+        if ($baseUrl === '') {
+            return redirect()->route('devices.manage')->withErrors(['gateway' => 'Base URL tidak boleh kosong.']);
+        }
+
+        try {
+            $this->writeEnvValue($envPath, 'WA_GATEWAY_BASE', $baseUrl);
+            if ($apiKey !== null && $apiKey !== '') {
+                $this->writeEnvValue($envPath, 'WA_GATEWAY_KEY', $apiKey);
+            }
+            return redirect()
+                ->route('devices.manage')
+                ->with('status', 'Gateway base URL diperbarui. Restart panel jika perlu.');
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['gateway' => 'Gagal menyimpan base URL: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updatePasswordResetSessions(Request $request): RedirectResponse
+    {
+        if (!$this->isAdminUser($request->user())) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['gateway' => 'Hanya admin yang boleh mengubah konfigurasi reset password.']);
+        }
+
+        $data = $request->validate([
+            'sessions' => ['nullable', 'array'],
+            'sessions.*' => ['string'],
+        ]);
+
+        $sessions = array_values(array_filter(array_map('trim', $data['sessions'] ?? [])));
+        $envValue = implode(',', $sessions);
+        $envPath = base_path('.env');
+
+        try {
+            $this->writeEnvValue($envPath, 'PASSWORD_RESET_SESSIONS', $envValue);
+            return redirect()
+                ->route('devices.manage')
+                ->with('status', 'Daftar device reset password diperbarui.');
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['gateway' => 'Gagal menyimpan device reset password: ' . $e->getMessage()]);
+        }
+    }
+
     public function apiStatus(): JsonResponse
     {
         try {
@@ -593,6 +728,10 @@ class GatewayController extends Controller
 
     public function webhookTest(Request $request, string $session): JsonResponse
     {
+        if (!$this->canManageSession($request->user(), $session)) {
+            return response()->json(['ok' => false, 'message' => 'Tidak punya akses ke session ini.'], 403);
+        }
+
         $data = $request->validate([
             'type' => ['required', 'string'],
             'url' => ['required', 'string'],
@@ -671,6 +810,10 @@ class GatewayController extends Controller
         $q = $request->query('q');
         $phone = $request->query('phone');
 
+        if (!$this->canManageSession($request->user(), $session)) {
+            return response()->json(['ok' => false, 'message' => 'Tidak punya akses ke session ini.'], 403);
+        }
+
         try {
             $groups = $this->gateway()->listGroups($session, is_string($q) ? $q : null, is_string($phone) ? $phone : null);
 
@@ -686,11 +829,11 @@ class GatewayController extends Controller
         }
     }
 
-    public function listSessions(): JsonResponse
+    public function listSessions(Request $request): JsonResponse
     {
         try {
             $sessions = $this->gateway()->listSessions();
-
+            $sessions = $this->filterSessionsForUser($sessions, $request->user());
             return response()->json(['sessions' => $sessions]);
         } catch (Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -715,6 +858,52 @@ class GatewayController extends Controller
     private function sessionConfigStore(): SessionConfigStore
     {
         return new SessionConfigStore(config('gateway.session_config_path'));
+    }
+
+    private function isAdminUser(?User $user): bool
+    {
+        return $user?->isAdmin() ?? false;
+    }
+
+    private function filterSessionsForUser(array $sessions, ?User $user): array
+    {
+        if ($this->isAdminUser($user)) {
+            return $sessions;
+        }
+
+        if (!$user) {
+            return [];
+        }
+
+        $owned = DeviceOwnership::where('user_id', $user->id)->pluck('session_id')->all();
+        return array_values(array_intersect($sessions, $owned));
+    }
+
+    private function canManageSession(?User $user, string $session): bool
+    {
+        if ($this->isAdminUser($user)) {
+            return true;
+        }
+
+        if (!$user) {
+            return false;
+        }
+
+        return DeviceOwnership::where('user_id', $user->id)
+            ->where('session_id', $session)
+            ->exists();
+    }
+
+    private function recordDeviceOwnership(?User $user, string $sessionId): void
+    {
+        if (!$user) {
+            return;
+        }
+
+        DeviceOwnership::updateOrCreate(
+            ['session_id' => $sessionId],
+            ['user_id' => $user->id]
+        );
     }
 
     private function permissionWarnings(): array

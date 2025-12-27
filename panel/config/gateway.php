@@ -16,6 +16,9 @@ return [
     // Path to wa-gateway registry file (token/apiKey per session).
     'registry_path' => env('DEVICE_REGISTRY_PATH', dirname(base_path()) . DIRECTORY_SEPARATOR . 'wa_credentials' . DIRECTORY_SEPARATOR . 'device-registry.json'),
 
+    // Comma-separated session IDs allowed to send password reset messages.
+    'password_reset_sessions' => array_filter(array_map('trim', explode(',', env('PASSWORD_RESET_SESSIONS', '')))),
+
     // Target applications that may receive WA_GATEWAY_TOKEN sync from specific devices.
     'token_targets' => [
         'jadwal' => [

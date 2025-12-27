@@ -51,6 +51,9 @@
             <div class="d-flex align-items-center gap-2">
                 <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-home me-1"></i> Dashboard</a>
                 <a href="{{ route('devices.manage') }}" class="btn btn-primary btn-sm"><i class="fas fa-microchip me-1"></i> Device Management</a>
+                @if(!empty($isAdmin))
+                    <a href="{{ route('users.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-users me-1"></i> Users</a>
+                @endif
                 <a href="{{ route('profile.show') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-user me-1"></i> Profil</a>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
@@ -85,6 +88,67 @@
                     @endforeach
                 </ul>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
+        @if(!empty($isAdmin))
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+                        <div>
+                            <h6 class="mb-1 fw-semibold"><i class="fas fa-network-wired me-2 text-primary"></i>Gateway Connection</h6>
+                            <p class="text-muted small mb-0">Ubah base URL (beserta port) yang dipakai panel ke WA Gateway.</p>
+                        </div>
+                    </div>
+                    <form class="row g-2" method="POST" action="{{ route('gateway.update_base') }}">
+                        @csrf
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small mb-1">Gateway Base URL (sertakan port)</label>
+                            <input type="text" name="base_url" class="form-control form-control-sm" value="{{ $gatewayConfig['base'] }}" placeholder="mis: http://localhost:5001 atau https://gateway.example.com:8443" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small mb-1">Gateway API Key (opsional)</label>
+                            <input type="text" name="api_key" class="form-control form-control-sm" value="{{ $gatewayConfig['key'] }}">
+                            <p class="text-muted small mb-0 mt-1">Biarkan kosong untuk tidak mengubah key.</p>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-primary w-100 btn-sm"><i class="fas fa-save me-1"></i>Simpan</button>
+                        </div>
+                        <div class="col-12">
+                            <p class="text-muted small mb-0">Jika mengganti port Node (env <code>PORT</code>), restart service gateway dan arahkan base URL ke port baru.</p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+                        <div>
+                            <h6 class="mb-1 fw-semibold"><i class="fas fa-key me-2 text-primary"></i>Device Reset Password</h6>
+                            <p class="text-muted small mb-0">Pilih device yang boleh mengirim reset password via WhatsApp.</p>
+                        </div>
+                    </div>
+                    <form method="POST" action="{{ route('gateway.update_reset_sessions') }}">
+                        @csrf
+                        <div class="row g-2">
+                            @forelse($sessions as $session)
+                                @php $resetId = 'reset-device-' . md5($session); @endphp
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="sessions[]" value="{{ $session }}" id="{{ $resetId }}" {{ in_array($session, $resetSessions ?? [], true) ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="{{ $resetId }}">{{ $session }}</label>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="col-12 text-muted small">Belum ada device yang aktif.</div>
+                            @endforelse
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Simpan</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         @endif
 
