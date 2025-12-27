@@ -220,6 +220,7 @@ setup_panel() {
 set_permissions() {
   local panel_dir="${REPO_DIR}/panel"
   local esbuild_bin="${REPO_DIR}/node_modules/@esbuild/linux-x64/bin/esbuild"
+  local panel_env="${panel_dir}/.env"
 
   log "Set permission storage + bootstrap/cache (panel)"
   cd "$panel_dir"
@@ -227,6 +228,22 @@ set_permissions() {
   as_root chown -R "${EXPECTED_USER}:${WEB_GROUP}" storage bootstrap/cache
   as_root chmod -R 775 storage bootstrap/cache
   as_root find storage bootstrap/cache -type d -exec chmod g+s {} \;
+
+  if [[ -f "${panel_dir}/database/database.sqlite" ]]; then
+    log "Set permission database.sqlite agar bisa ditulis web user"
+    as_root chown "${WEB_GROUP}:${WEB_GROUP}" "${panel_dir}/database/database.sqlite"
+    as_root chmod 664 "${panel_dir}/database/database.sqlite"
+    as_root chown -R "${WEB_GROUP}:${WEB_GROUP}" "${panel_dir}/database"
+    as_root chmod -R 775 "${panel_dir}/database"
+  fi
+
+  if [[ -f "${panel_env}" ]]; then
+    log "Set permission panel/.env agar bisa ditulis web user"
+    as_root chown "${WEB_GROUP}:${WEB_GROUP}" "${panel_env}"
+    as_root chmod 640 "${panel_env}"
+  else
+    warn "File ${panel_env} belum ada; lewati set permission .env panel."
+  fi
 
   log "Siapkan folder wa_credentials (${WA_CREDENTIALS_DIR})"
   as_root mkdir -p "${WA_CREDENTIALS_DIR}"
