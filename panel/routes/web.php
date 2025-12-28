@@ -30,7 +30,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/devices/manage', [GatewayController::class, 'deviceManagement'])->name('devices.manage');
     Route::post('/devices', [GatewayController::class, 'createDevice'])->name('devices.create');
     Route::post('/devices/create-json', [GatewayController::class, 'createDeviceJson'])->name('devices.create_json');
-    Route::post('/devices/{device}/sync-token', [GatewayController::class, 'syncToken'])->name('devices.sync_token');
     Route::post('/devices/{device}/delete', [GatewayController::class, 'deleteDevice'])->name('devices.delete');
     Route::post('/gateway/base', [GatewayController::class, 'updateGatewayBase'])->name('gateway.update_base');
     Route::post('/gateway/reset-sessions', [GatewayController::class, 'updatePasswordResetSessions'])->name('gateway.update_reset_sessions');

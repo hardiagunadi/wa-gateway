@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { z } from "zod";
 
-export const env = z
+const schema = z
   .object({
     NODE_ENV: z.enum(["development", "production"]).default("development"),
     KEY: z.string().default(""),
@@ -10,7 +10,14 @@ export const env = z
       .default("5001")
       .transform((e) => Number(e)),
     WEBHOOK_BASE_URL: z.string().optional(),
-    REGISTRY_USER: z.string().optional(),
-    REGISTRY_PASS: z.string().optional(),
   })
-  .parse(process.env);
+  .superRefine((value, ctx) => {
+    if (value.NODE_ENV === "production" && !value.KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "KEY is required in production.",
+      });
+    }
+  });
+
+export const env = schema.parse(process.env);

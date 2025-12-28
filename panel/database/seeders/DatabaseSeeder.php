@@ -15,16 +15,33 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::updateOrCreate(
-            ['email' => 'admin@example.com'],
-            [
-                'name' => 'admin',
-                'email_verified_at' => now(),
-                'password' => bcrypt('admin'),
-                'role' => 'admin',
-            ]
-        );
+        $adminEmail = env('ADMIN_EMAIL');
+        $adminPassword = env('ADMIN_PASSWORD');
+        $adminName = env('ADMIN_NAME', 'admin');
 
-        User::where('name', 'admin')->update(['role' => 'admin']);
+        if ($adminEmail && $adminPassword) {
+            User::updateOrCreate(
+                ['email' => $adminEmail],
+                [
+                    'name' => $adminName,
+                    'email_verified_at' => now(),
+                    'password' => bcrypt($adminPassword),
+                    'role' => 'admin',
+                ]
+            );
+            return;
+        }
+
+        if (app()->environment(['local', 'development', 'testing'])) {
+            User::updateOrCreate(
+                ['email' => 'admin@example.com'],
+                [
+                    'name' => 'admin',
+                    'email_verified_at' => now(),
+                    'password' => bcrypt('admin'),
+                    'role' => 'admin',
+                ]
+            );
+        }
     }
 }

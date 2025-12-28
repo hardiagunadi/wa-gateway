@@ -1,14 +1,8 @@
 import fs from "fs/promises";
-import { watch } from "fs";
 import path from "path";
 import crypto from "crypto";
 import { ensureWaCredentialsDir, waCredentialsDir } from "../wa-credentials";
-import {
-  getSessionWebhookConfig,
-  listSessionWebhookConfigs,
-  sessionConfigPath,
-} from "../session-config";
-import { listStoredSessions } from "../session-store";
+import { getSessionWebhookConfig } from "../session-config";
 
 export type DeviceRecord = {
   /**
@@ -191,41 +185,6 @@ export const ensureDeviceRegistryForSession = async (
   }
 
   return next;
-};
-
-export const syncDeviceRegistryWithStoredSessions = async () => {
-  const sessions = await listStoredSessions().catch(() => []);
-  for (const sessionId of sessions) {
-    await ensureDeviceRegistryForSession(sessionId);
-  }
-};
-
-export const syncDeviceRegistryWithSessionConfig = async () => {
-  const configs = await listSessionWebhookConfigs().catch(() => ({}));
-  const sessionIds = Object.keys(configs);
-  for (const sessionId of sessionIds) {
-    await ensureDeviceRegistryForSession(sessionId);
-  }
-};
-
-export const startSessionConfigWatcher = () => {
-  try {
-    let timer: NodeJS.Timeout | null = null;
-    watch(
-      sessionConfigPath,
-      { persistent: false },
-      (_eventType, _filename) => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => {
-          syncDeviceRegistryWithSessionConfig().catch((err) =>
-            console.error("Failed to sync device registry (watcher)", err)
-          );
-        }, 500);
-      }
-    );
-  } catch (err) {
-    console.error("Failed to start session-config watcher", err);
-  }
 };
 
 export const generateToken = () => {

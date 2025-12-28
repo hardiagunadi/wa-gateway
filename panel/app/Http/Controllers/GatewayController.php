@@ -7,7 +7,6 @@ use App\Models\User;
 use App\Services\GatewayService;
 use App\Services\NpmService;
 use App\Services\SessionConfigStore;
-use App\Services\DeviceRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
@@ -584,64 +583,6 @@ class GatewayController extends Controller
         }
     }
 
-    public function syncToken(Request $request, string $device): RedirectResponse
-    {
-        if (!$this->isAdminUser($request->user())) {
-            return redirect()
-                ->route('dashboard')
-                ->withErrors(['device' => 'Hanya admin yang boleh melakukan sinkronisasi token.']);
-        }
-
-        $targets = $this->tokenTargets();
-        $targetKey = $request->input('target');
-
-        if (!is_string($targetKey) || !isset($targets[$targetKey])) {
-            return redirect()
-                ->route('dashboard')
-                ->withErrors(['device' => 'Target aplikasi tidak dikenal.']);
-        }
-
-        $target = $targets[$targetKey];
-        $envPath = $target['env_path'] ?? null;
-        $envKey = $target['env_key'] ?? 'WA_GATEWAY_TOKEN';
-        $allowed = $target['allowed_sessions'] ?? [];
-        $label = $target['label'] ?? ucfirst($targetKey);
-
-        if (!$envPath) {
-            return redirect()
-                ->route('dashboard')
-                ->withErrors(['device' => 'Lokasi .env target belum dikonfigurasi.']);
-        }
-
-        if (is_array($allowed) && count($allowed) > 0 && !in_array($device, $allowed, true)) {
-            return redirect()
-                ->route('dashboard')
-                ->withErrors(['device' => "Device {$device} tidak diizinkan untuk target {$label}."]);
-        }
-
-        $registryPath = config('gateway.registry_path');
-        $registry = new DeviceRegistry($registryPath);
-        $token = $registry->getTokenBySession($device);
-
-        if (!$token) {
-            return redirect()
-                ->route('devices.manage')
-                ->withErrors(['device' => "Token untuk device {$device} tidak ditemukan di registry."]);
-        }
-
-        try {
-            $this->writeEnvValue($envPath, $envKey, $token);
-        } catch (Throwable $e) {
-            return redirect()
-                ->route('devices.manage')
-                ->withErrors(['device' => "Gagal menyimpan token ke {$envPath}: " . $e->getMessage()]);
-        }
-
-        return redirect()
-            ->route('devices.manage')
-            ->with('status', "Token {$envKey} untuk {$label} diperbarui dari device {$device}.");
-    }
-
     public function updateGatewayBase(Request $request): RedirectResponse
     {
         if (!$this->isAdminUser($request->user())) {
@@ -912,10 +853,8 @@ class GatewayController extends Controller
         $user = function_exists('get_current_user') ? get_current_user() : 'web user';
 
         $sessionConfig = config('gateway.session_config_path');
-        $registryPath = config('gateway.registry_path');
         $waCredentialsDir = $sessionConfig ? dirname($sessionConfig) : null;
         $mediaDir = dirname(base_path()) . DIRECTORY_SEPARATOR . 'media';
-        $targetEnv = config('gateway.token_targets.jadwal.env_path') ?? null;
 
         $checkWritableFile = function (?string $path, string $label) use (&$warnings, $user) {
             if (!$path) {
@@ -945,24 +884,9 @@ class GatewayController extends Controller
 
         $checkDir($waCredentialsDir, 'Folder wa_credentials');
         $checkWritableFile($sessionConfig, 'File session-config.json');
-        $checkWritableFile($registryPath, 'File device-registry.json');
         $checkDir($mediaDir, 'Folder media');
-        $checkWritableFile($targetEnv, 'File .env target sinkron token');
 
         return $warnings;
-    }
-
-    private function tokenTargets(): array
-    {
-        $targets = config('gateway.token_targets', []);
-        if (!is_array($targets)) {
-            return [];
-        }
-
-        // Only expose configured targets with env path defined.
-        return array_filter($targets, function ($target) {
-            return is_array($target) && !empty($target['env_path']);
-        });
     }
 
     private function writeEnvValue(string $envPath, string $key, string $value): void

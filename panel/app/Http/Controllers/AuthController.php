@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -70,29 +71,33 @@ class AuthController extends Controller
             'phone' => ['required', 'string'],
         ]);
 
+        $throttleKey = 'reset-pass:' . sha1(strtolower($data['username']) . '|' . $request->ip());
+        if (RateLimiter::tooManyAttempts($throttleKey, 3)) {
+            return back()
+                ->withErrors(['username' => 'Terlalu banyak percobaan. Coba lagi beberapa menit.'])
+                ->withInput();
+        }
+        RateLimiter::hit($throttleKey, 300);
+
         $user = User::where('email', $data['username'])
             ->orWhere('name', $data['username'])
             ->first();
 
+        $publicMessage = 'Jika data cocok, password baru akan dikirim lewat WhatsApp.';
+
         if (!$user) {
-            return back()
-                ->withErrors(['username' => 'Akun tidak ditemukan.'])
-                ->withInput();
+            return back()->with('status', $publicMessage);
         }
 
         $storedPhone = $this->normalizePhone($user->phone);
         $inputPhone = $this->normalizePhone($data['phone']);
 
         if (!$storedPhone) {
-            return back()
-                ->withErrors(['phone' => 'Nomor WA belum disimpan di profil akun ini.'])
-                ->withInput();
+            return back()->with('status', $publicMessage);
         }
 
         if ($storedPhone !== $inputPhone) {
-            return back()
-                ->withErrors(['phone' => 'Nomor WA tidak sesuai dengan profil.'])
-                ->withInput();
+            return back()->with('status', $publicMessage);
         }
 
         $sessionId = $this->resolvePasswordResetSession();
@@ -118,6 +123,8 @@ class AuthController extends Controller
                 ->withErrors(['username' => 'Gagal mengirim reset password via WhatsApp: ' . $e->getMessage()])
                 ->withInput();
         }
+
+        RateLimiter::clear($throttleKey);
 
         return redirect()
             ->route('login')

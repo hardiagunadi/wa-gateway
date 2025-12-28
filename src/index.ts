@@ -12,17 +12,11 @@ import { createProfileController } from "./controllers/profile";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createHealthController } from "./controllers/health";
 import { createGroupController } from "./controllers/group";
-import { createRegistryController } from "./controllers/registry";
 import {
   createWaGatewayCompatController,
   createWaGatewayCompatV2Controller,
 } from "./controllers/wa-gateway";
 import { startWaGatewayScheduler } from "./wa-gateway/scheduler";
-import {
-  startSessionConfigWatcher,
-  syncDeviceRegistryWithSessionConfig,
-  syncDeviceRegistryWithStoredSessions,
-} from "./wa-gateway/registry";
 
 const app = new Hono();
 
@@ -70,23 +64,10 @@ app.route("/", createHealthController());
 app.route("/", createGroupController());
 
 /**
- * registry routes (admin)
- */
-app.route("/", createRegistryController());
-
-/**
  * wa-gateway-compatible API (v1 + v2)
  */
 app.route("/", createWaGatewayCompatController());
 app.route("/", createWaGatewayCompatV2Controller());
-
-syncDeviceRegistryWithSessionConfig().catch((err) =>
-  console.error("Failed to sync device registry from session-config", err)
-);
-syncDeviceRegistryWithStoredSessions().catch((err) =>
-  console.error("Failed to sync device registry", err)
-);
-startSessionConfigWatcher();
 
 const port = env.PORT;
 
