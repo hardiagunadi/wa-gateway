@@ -47,6 +47,19 @@ Panduan ringkas supaya setup production (mis. `/var/www/wa-gateway`) tidak ada l
 - Gunakan HTTPS di panel dan gateway.
 - Batasi akses file `wa_credentials` dan `.env` hanya untuk user service.
 
+## 5.1) Reverse proxy (Apache, path-based)
+- Jika ingin panel dan API wa-gateway di domain yang sama, gunakan path-based proxy (mis. `/gateway/`).
+- Contoh di vhost HTTPS (panel tetap di root, wa-gateway di `/gateway/`):
+  ```apache
+  ProxyPreserveHost On
+  RequestHeader set X-Forwarded-Proto "https"
+
+  ProxyPass /gateway/ http://127.0.0.1:5001/
+  ProxyPassReverse /gateway/ http://127.0.0.1:5001/
+  ```
+- Set `WA_GATEWAY_BASE` (panel) atau `WA_GATEWAY_BASE_URL` (aplikasi lain) ke `https://domain/gateway`.
+- Pastikan modul aktif: `proxy`, `proxy_http`, `headers`. Port 5001 cukup lokal (tidak perlu dibuka publik).
+
 ## 6) Uji fungsi (smoke test)
 - Buka panel: cek API status hijau, NPM server berjalan.
 - Tambah device (QR/pairing) → pastikan status Connected dan webhook config tersimpan.
