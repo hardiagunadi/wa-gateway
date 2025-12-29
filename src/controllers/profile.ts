@@ -4,6 +4,8 @@ import { z } from "zod";
 import { createKeyMiddleware } from "../middlewares/key.middleware";
 import { HTTPException } from "hono/http-exception";
 import { whatsapp } from "../whatsapp";
+import { getDeviceBySessionId } from "../wa-gateway/registry";
+import { getContactByPhone } from "../wa-gateway/store";
 
 export const createProfileController = () => {
   const getProfileSchema = z.object({
@@ -48,11 +50,24 @@ export const createProfileController = () => {
           });
         }
 
+        let name: string | null = null;
+        if (payload.target.includes("@s.whatsapp.net")) {
+          const device = await getDeviceBySessionId(payload.session);
+          if (device?.token) {
+            const phone = payload.target.replace(/@.*/, "");
+            const contact = await getContactByPhone(device.token, phone);
+            name = contact?.name ?? null;
+          }
+        }
+
         return c.json({
-          data: await whatsapp.getProfile({
-            sessionId: payload.session,
-            target: payload.target,
-          }),
+          data: {
+            ...(await whatsapp.getProfile({
+              sessionId: payload.session,
+              target: payload.target,
+            })),
+            name,
+          },
         });
       }
     );

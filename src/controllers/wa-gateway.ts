@@ -29,6 +29,7 @@ import {
   sendV2Text,
   sendV2Video,
   truthy,
+  resolveLidToPhone,
 } from "../wa-gateway/sender";
 import { recordOutgoingMessage } from "../status-store";
 import {
@@ -1395,6 +1396,19 @@ const createWaGatewayV2Router = () => {
     }
     const contact = await getContactByPhone(token, phone);
     return c.json({ status: true, data: contact ? [contact] : [] });
+  });
+
+  app.get("/resolve-lid", async (c) => {
+    const token = requireToken(getWaGatewayToken(c));
+    const sessionId = await resolveSessionIdFromToken(token);
+    const lid = (c.req.query("lid") || "").trim();
+    if (!lid) throw new HTTPException(400, { message: "lid required" });
+    const jid = await resolveLidToPhone(sessionId, lid);
+    const phone = typeof jid === "string" ? jid.replace(/@.*/, "") : null;
+    return c.json({
+      status: true,
+      data: { lid, jid, phone },
+    });
   });
 
   /**

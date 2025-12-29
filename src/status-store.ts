@@ -5,8 +5,10 @@ export type MessageStatusRecord = {
   updatedAt: string;
   createdAt?: string;
   to?: string;
+  from?: string;
   preview?: string;
   category?: string;
+  direction?: "incoming" | "outgoing";
   key?: unknown;
   update?: unknown;
 };
@@ -30,8 +32,10 @@ export const upsertMessageStatus = (
     createdAt:
       existing?.createdAt || record.createdAt || record.updatedAt || timestamp,
     to: record.to ?? existing?.to,
+    from: record.from ?? existing?.from,
     preview: record.preview ?? existing?.preview,
     category: record.category ?? existing?.category,
+    direction: record.direction ?? existing?.direction,
     key: record.key ?? existing?.key,
     update: record.update ?? existing?.update,
   };
@@ -59,6 +63,30 @@ export const recordOutgoingMessage = (record: {
     preview: record.preview,
     category: record.category,
     status: record.status || "pending",
+    direction: "outgoing",
+    createdAt: nowIso(),
+  });
+};
+
+export const recordIncomingMessage = (record: {
+  session: string;
+  id: string | null | undefined;
+  from?: string;
+  to?: string;
+  preview?: string;
+  category?: string;
+  status?: string;
+}) => {
+  if (!record.id) return null;
+  return upsertMessageStatus({
+    session: record.session,
+    id: record.id,
+    from: record.from,
+    to: record.to,
+    preview: record.preview,
+    category: record.category,
+    status: record.status || "received",
+    direction: "incoming",
     createdAt: nowIso(),
   });
 };

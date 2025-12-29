@@ -1,5 +1,6 @@
 import axios from "axios";
 import type { MessageReceived, MessageUpdated } from "wa-multi-session";
+import { jidDecode } from "baileys";
 import {
   SQLiteAdapter,
   Whatsapp,
@@ -13,9 +14,9 @@ import {
   handleWebhookVideoMessage,
 } from "./webhooks/media";
 import { getSessionWebhookConfig } from "./session-config";
-import { upsertMessageStatus } from "./status-store";
+import { recordIncomingMessage, upsertMessageStatus } from "./status-store";
 import { getDeviceBySessionId } from "./wa-gateway/registry";
-import { findAutoreplyByKeyword } from "./wa-gateway/store";
+import { findAutoreplyByKeyword, upsertContactName } from "./wa-gateway/store";
 import { listStoredSessions, removeStoredSession } from "./session-store";
 import { deleteDeviceBySessionId } from "./wa-gateway/registry";
 import { waCredentialsDir } from "./wa-credentials";
@@ -32,6 +33,103 @@ const sanitizeJidUser = (jid?: string | null) => {
   const noDevice = jid.split(":")[0] || jid;
   const user = noDevice.replace(/@.*/, "");
   return user || null;
+};
+
+const normalizeDisplayName = (value?: string | null) => {
+  const trimmed = (value || "").trim();
+  return trimmed || null;
+};
+
+const isLidJid = (jid?: string | null) =>
+  typeof jid === "string" && jid.toLowerCase().endsWith("@lid");
+
+const ensurePhoneJid = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.includes("@")) return trimmed;
+  return `${trimmed}@s.whatsapp.net`;
+};
+
+const LID_CACHE_TTL_MS = 5 * 60 * 1000;
+const lidCache = new Map<string, { value: string; expiresAt: number }>();
+
+const getCachedLid = (lid: string) => {
+  const cached = lidCache.get(lid);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    lidCache.delete(lid);
+    return null;
+  }
+  return cached.value;
+};
+
+const setCachedLid = (lid: string, value: string) => {
+  lidCache.set(lid, { value, expiresAt: Date.now() + LID_CACHE_TTL_MS });
+};
+
+const resolveLidFromAuthState = async (sock: any, lidJid: string) => {
+  if (!sock) return null;
+  const decoded = jidDecode(lidJid);
+  const lidUser = decoded?.user || sanitizeJidUser(lidJid);
+  if (!lidUser) return null;
+  const keys = sock?.authState?.keys;
+  if (!keys || typeof keys.get !== "function") return null;
+
+  try {
+    const stored = await keys.get("lid-mapping", [`${lidUser}_reverse`]);
+    const pnUser = stored?.[`${lidUser}_reverse`];
+    if (typeof pnUser === "string" && pnUser.trim()) {
+      return ensurePhoneJid(pnUser);
+    }
+  } catch (err) {
+    console.error("Failed to resolve lid from auth state", err);
+  }
+
+  return null;
+};
+
+const resolveLidFromGroups = async (sessionId: string, lidJid: string) => {
+  const cached = getCachedLid(lidJid);
+  if (cached) return cached;
+
+  const session = await whatsapp.getSessionById(sessionId);
+  const sock: any = (session as any)?.sock;
+  if (typeof sock?.groupFetchAllParticipating !== "function") {
+    return null;
+  }
+
+  try {
+    const groups = await sock.groupFetchAllParticipating();
+    const metas = Object.values(groups || {});
+    for (const meta of metas) {
+      const participants = Array.isArray(meta?.participants)
+        ? meta.participants
+        : [];
+      for (const participant of participants) {
+        const lid =
+          (typeof participant?.lid === "string" && participant.lid.trim()) ||
+          (typeof participant?.id === "string" && isLidJid(participant.id)
+            ? participant.id
+            : null);
+        const pn =
+          (typeof participant?.phoneNumber === "string" &&
+            participant.phoneNumber.trim()) ||
+          (typeof participant?.id === "string" && !isLidJid(participant.id)
+            ? participant.id
+            : null);
+        if (!lid || !pn) continue;
+        const normalizedPn = ensurePhoneJid(pn);
+        if (normalizedPn && !isLidJid(normalizedPn)) {
+          setCachedLid(lid, normalizedPn);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to resolve lid via group list", err);
+    return null;
+  }
+
+  return getCachedLid(lidJid);
 };
 
 const normalizeSenderJid = (
@@ -62,28 +160,56 @@ const resolveSenderInfo = async (message: MessageReceived) => {
   const remoteJid = message.key.remoteJid;
   const rawSender = (message.key as any)?.participant ?? remoteJid ?? null;
   const isGroup = Boolean(remoteJid && remoteJid.includes("@g.us"));
-  const isLid = typeof rawSender === "string" && rawSender.endsWith("@lid");
+  const isLid = isLidJid(rawSender);
+  const pushName = normalizeDisplayName((message as any)?.pushName);
 
   if (!rawSender) {
-    return { senderJid: null, participant: null };
+    return {
+      senderJid: null,
+      participant: null,
+      displayName: pushName,
+      phoneResolved: false,
+    };
   }
 
-  if (!isGroup || !isLid) {
+  if (!isLid) {
     const participant = sanitizeJidUser(rawSender);
     const senderJid = normalizeSenderJid(rawSender, participant);
-    return { senderJid, participant };
+    return {
+      senderJid,
+      participant,
+      displayName: pushName,
+      phoneResolved: true,
+    };
   }
 
-  // Attempt to resolve @lid sender to actual participant JID using group metadata.
+  // Attempt to resolve @lid sender using auth state mapping (no group needed).
   try {
     const session = await whatsapp.getSessionById(message.sessionId);
     const sock: any = (session as any)?.sock;
-    if (sock?.groupMetadata) {
+    const resolvedFromAuth = await resolveLidFromAuthState(sock, rawSender);
+    if (resolvedFromAuth) {
+      setCachedLid(rawSender, resolvedFromAuth);
+      const participant = sanitizeJidUser(resolvedFromAuth);
+      const senderJid = normalizeSenderJid(resolvedFromAuth, participant);
+      return {
+        senderJid,
+        participant,
+        displayName: pushName,
+        phoneResolved: true,
+      };
+    }
+
+    // Attempt to resolve @lid sender to actual participant JID using group metadata.
+    if (isGroup && sock?.groupMetadata) {
       const meta = await sock.groupMetadata(remoteJid);
       const match =
         meta?.participants?.find(
           (p: any) => p?.id === rawSender || p?.lid === rawSender
         ) || null;
+      const displayName =
+        normalizeDisplayName(match?.notify || match?.name || match?.verifiedName) ||
+        pushName;
 
       const resolvedJid =
         (match?.id as string | undefined) ||
@@ -91,6 +217,10 @@ const resolveSenderInfo = async (message: MessageReceived) => {
           ? `${match.phoneNumber}@s.whatsapp.net`
           : null) ||
         rawSender;
+
+      if (rawSender && resolvedJid && !isLidJid(resolvedJid)) {
+        setCachedLid(rawSender, resolvedJid);
+      }
 
       const participant =
         sanitizeJidUser(
@@ -100,20 +230,100 @@ const resolveSenderInfo = async (message: MessageReceived) => {
         ) ?? sanitizeJidUser(rawSender);
 
       const senderJid = normalizeSenderJid(resolvedJid, participant);
-      return { senderJid, participant };
+      return {
+        senderJid,
+        participant,
+        displayName,
+        phoneResolved: Boolean(resolvedJid && !isLidJid(resolvedJid)),
+      };
     }
   } catch (err) {
     console.error("Failed to resolve participant for lid sender", err);
   }
 
+  const resolved = await resolveLidFromGroups(message.sessionId, rawSender);
+  if (resolved) {
+    const participant = sanitizeJidUser(resolved) ?? sanitizeJidUser(rawSender);
+    const senderJid = normalizeSenderJid(resolved, participant);
+    return {
+      senderJid,
+      participant,
+      displayName: pushName,
+      phoneResolved: true,
+    };
+  }
+
   const participant = sanitizeJidUser(rawSender);
   const senderJid = normalizeSenderJid(rawSender, participant);
 
-  return { senderJid, participant };
+  return {
+    senderJid,
+    participant,
+    displayName: pushName,
+    phoneResolved: false,
+  };
 };
 
 const normalizeBaseUrl = (baseUrl?: string) =>
   (baseUrl || "").trim().replace(/\/$/, "");
+
+const getIncomingPreview = (message: MessageReceived) => {
+  const content = message.message;
+  if (!content) return { preview: null, category: "unknown" };
+
+  if (content.imageMessage) {
+    return {
+      preview: content.imageMessage.caption || "[image]",
+      category: "image",
+    };
+  }
+
+  if (content.videoMessage) {
+    return {
+      preview: content.videoMessage.caption || "[video]",
+      category: "video",
+    };
+  }
+
+  if (content.documentMessage) {
+    return {
+      preview:
+        content.documentMessage.caption ||
+        content.documentMessage.fileName ||
+        "[document]",
+      category: "document",
+    };
+  }
+
+  if (content.audioMessage) {
+    return { preview: "[audio]", category: "audio" };
+  }
+
+  if (content.conversation) {
+    return { preview: content.conversation, category: "text" };
+  }
+
+  if (content.extendedTextMessage?.text) {
+    return { preview: content.extendedTextMessage.text, category: "text" };
+  }
+
+  if (content.contactMessage?.displayName) {
+    return { preview: content.contactMessage.displayName, category: "contact" };
+  }
+
+  if (content.locationMessage?.comment) {
+    return { preview: content.locationMessage.comment, category: "location" };
+  }
+
+  if (content.liveLocationMessage?.caption) {
+    return {
+      preview: content.liveLocationMessage.caption,
+      category: "location",
+    };
+  }
+
+  return { preview: null, category: "unknown" };
+};
 
 async function sendDeviceStatus(
   sessionId: string,
@@ -132,7 +342,15 @@ async function sendDeviceStatus(
     .catch(console.error);
 }
 
-async function buildIncomingPayload(message: MessageReceived) {
+async function buildIncomingPayload(
+  message: MessageReceived,
+  senderInfo?: {
+    senderJid: string | null;
+    participant: string | null;
+    displayName?: string | null;
+    phoneResolved?: boolean;
+  }
+) {
   const image = await handleWebhookImageMessage(message);
   const video = await handleWebhookVideoMessage(message);
   const document = await handleWebhookDocumentMessage(message);
@@ -140,11 +358,14 @@ async function buildIncomingPayload(message: MessageReceived) {
 
   const fromJid = message.key.remoteJid ?? null;
   const isGroup = Boolean(fromJid && fromJid.includes("@g.us"));
-  const { senderJid, participant } = await resolveSenderInfo(message);
+  const { senderJid, participant } =
+    senderInfo || (await resolveSenderInfo(message));
+  const resolvedFrom =
+    !isGroup && fromJid && isLidJid(fromJid) && senderJid ? senderJid : fromJid;
 
   return {
     session: message.sessionId,
-    from: fromJid,
+    from: resolvedFrom,
     sender: senderJid,
     participant,
     isGroup,
@@ -175,7 +396,35 @@ async function onIncomingMessage(message: MessageReceived) {
   const config = await getSessionWebhookConfig(message.sessionId);
   const baseUrl = normalizeBaseUrl(config.webhookBaseUrl);
 
-  const payload = await buildIncomingPayload(message);
+  const senderInfo = await resolveSenderInfo(message);
+  const { preview, category } = getIncomingPreview(message);
+  const device = await getDeviceBySessionId(message.sessionId);
+  recordIncomingMessage({
+    session: message.sessionId,
+    id: message.key.id,
+    from:
+      senderInfo.senderJid ||
+      senderInfo.participant ||
+      (message.key as any)?.participant ||
+      message.key.remoteJid ||
+      undefined,
+    to: message.key.remoteJid || undefined,
+    preview: preview || undefined,
+    category,
+  });
+
+  if (device?.token && senderInfo.phoneResolved) {
+    const phone = sanitizeJidUser(senderInfo.senderJid);
+    if (phone && senderInfo.displayName) {
+      upsertContactName(device.token, phone, senderInfo.displayName).catch(
+        (err) => {
+          console.error("Failed to store contact name", err);
+        }
+      );
+    }
+  }
+
+  const payload = await buildIncomingPayload(message, senderInfo);
   const incomingText = typeof payload.message === "string" ? payload.message : "";
 
   if (baseUrl) {
@@ -228,7 +477,6 @@ async function onIncomingMessage(message: MessageReceived) {
   // wa-gateway-compatible autoreply rules (token-scoped).
   // Only apply when webhook auto-reply is disabled to avoid double replies.
   if (!config.autoReplyEnabled && incomingText && message.key.remoteJid) {
-    const device = await getDeviceBySessionId(message.sessionId);
     if (device) {
       const matches = await findAutoreplyByKeyword(device.token, incomingText);
       const reply = matches[0]?.response;

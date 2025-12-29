@@ -761,7 +761,7 @@
                         </div>
                         <div class="row g-2 align-items-end mb-2">
                             <div class="col-md-6">
-                                <label class="form-label text-muted small mb-1">Filter nomor/tujuan</label>
+                                <label class="form-label text-muted small mb-1">Filter nomor/pengirim/tujuan</label>
                                 <input type="text" class="form-control form-control-sm log-filter-phone" placeholder="628xx / id">
                             </div>
                             <div class="col-md-4">
@@ -772,6 +772,7 @@
                                     <option value="sent">sent</option>
                                     <option value="delivered">delivered</option>
                                     <option value="read">read</option>
+                                    <option value="received">received</option>
                                     <option value="failed">failed</option>
                                 </select>
                             </div>
@@ -803,9 +804,13 @@
                             const phoneFilter = (messageLogContent.querySelector('.log-filter-phone')?.value || '').trim().toLowerCase();
                             const statusFilter = (messageLogContent.querySelector('.log-filter-status')?.value || '').trim().toLowerCase();
                             const filtered = items.filter((item) => {
-                                const to = (item.to || '').toString().toLowerCase();
+                                const direction = (item.direction || '').toString().toLowerCase();
+                                const peer = (direction === 'incoming'
+                                    ? (item.from || item.to)
+                                    : (item.to || item.from) || ''
+                                ).toString().toLowerCase();
                                 const st = (item.status || '').toString().toLowerCase();
-                                const matchPhone = !phoneFilter || to.includes(phoneFilter);
+                                const matchPhone = !phoneFilter || peer.includes(phoneFilter);
                                 const matchStatus = !statusFilter || st === statusFilter;
                                 return matchPhone && matchStatus;
                             });
@@ -821,7 +826,8 @@
                                     <thead class="bg-slate-100 text-slate-700">
                                         <tr>
                                             <th class="px-2 py-2 text-left">Message ID</th>
-                                            <th class="px-2 py-2 text-left">Tujuan</th>
+                                            <th class="px-2 py-2 text-left">Arah</th>
+                                            <th class="px-2 py-2 text-left">Kontak</th>
                                             <th class="px-2 py-2 text-left">Isi</th>
                                             <th class="px-2 py-2 text-left">Status</th>
                                             <th class="px-2 py-2 text-left">Updated</th>
@@ -830,20 +836,39 @@
                                     <tbody>
                                         ${filtered.map((item) => {
                                             const status = (item.status || '').toString();
+                                            const direction = (item.direction || '').toString().toLowerCase();
+                                            const directionLabel = direction === 'incoming'
+                                                ? 'Masuk'
+                                                : direction === 'outgoing'
+                                                ? 'Keluar'
+                                                : '-';
                                             const ts = item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '-';
                                             const id = (item.id || '').toString();
-                                            const to = escapeHtml(item.to || '-');
+                                            const peerRaw = direction === 'incoming'
+                                                ? (item.from || item.to || '-')
+                                                : (item.to || item.from || '-');
+                                            const peer = escapeHtml(peerRaw);
                                             const previewRaw = escapeHtml(item.preview || '');
                                             const preview = previewRaw || '<span class="text-slate-400">-</span>';
                                             const badgeClass = status === 'delivered' || status === 'read' || status === 'sent'
                                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                                                 : status === 'pending'
                                                 ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                                : status === 'received'
+                                                ? 'bg-sky-100 text-sky-800 border-sky-200'
                                                 : 'bg-rose-100 text-rose-800 border-rose-200';
+                                            const directionBadgeClass = direction === 'incoming'
+                                                ? 'bg-sky-100 text-sky-800 border-sky-200'
+                                                : direction === 'outgoing'
+                                                ? 'bg-indigo-100 text-indigo-800 border-indigo-200'
+                                                : 'bg-slate-100 text-slate-700 border-slate-200';
                                             return `
                                                 <tr class="border-t border-slate-100">
                                                     <td class="px-2 py-2 font-mono break-all">${id}</td>
-                                                    <td class="px-2 py-2 font-mono text-[11px] break-all">${to}</td>
+                                                    <td class="px-2 py-2">
+                                                        <span class="text-[11px] px-2 py-0.5 rounded-full border ${directionBadgeClass}">${directionLabel}</span>
+                                                    </td>
+                                                    <td class="px-2 py-2 font-mono text-[11px] break-all">${peer}</td>
                                                     <td class="px-2 py-2 text-slate-700 break-all">${preview}</td>
                                                     <td class="px-2 py-2">
                                                         <span class="text-[11px] px-2 py-0.5 rounded-full border ${badgeClass}">${status || '-'}</span>

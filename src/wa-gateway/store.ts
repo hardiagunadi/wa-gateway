@@ -121,6 +121,50 @@ export const getContactByPhone = async (token: string, phone: string) => {
   return contacts.find((c) => c.phone === phone) ?? null;
 };
 
+export const upsertContactName = async (
+  token: string,
+  phone: string,
+  name: string
+) => {
+  const cleanPhone = (phone || "").trim();
+  const cleanName = (name || "").trim();
+  if (!cleanPhone || !cleanName) return null;
+
+  const all = await readJson<Record<string, WaGatewayContact[]>>(
+    contactsPath,
+    {}
+  );
+  const list = all[token] ?? [];
+  const idx = list.findIndex((c) => c.phone === cleanPhone);
+  const timestamp = nowIso();
+
+  if (idx >= 0) {
+    const existing = list[idx];
+    if (existing.name && existing.name.trim()) {
+      return existing;
+    }
+    list[idx] = {
+      ...existing,
+      name: cleanName,
+      updatedAt: timestamp,
+    };
+    all[token] = list;
+    await writeJson(contactsPath, all);
+    return list[idx];
+  }
+
+  const created: WaGatewayContact = {
+    phone: cleanPhone,
+    name: cleanName,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  list.push(created);
+  all[token] = list;
+  await writeJson(contactsPath, all);
+  return created;
+};
+
 export const listAutoreplyRules = async (
   token: string
 ): Promise<WaGatewayAutoreplyRule[]> => {

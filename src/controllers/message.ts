@@ -137,6 +137,13 @@ export const createMessageController = () => {
           to: payload.to,
           text: payload.text,
         });
+        recordOutgoingMessage({
+          session: payload.session,
+          id: (response as any)?.key?.id,
+          to: payload.to,
+          preview: payload.text,
+          category: "text",
+        });
 
         return c.json({
           data: response,
@@ -181,6 +188,13 @@ export const createMessageController = () => {
           text: payload.text,
           media: payload.image_url,
           isGroup: payload.is_group,
+        });
+        recordOutgoingMessage({
+          session: payload.session,
+          id: (response as any)?.key?.id,
+          to: payload.to,
+          preview: payload.text || "[image]",
+          category: "image",
         });
 
         return c.json({
@@ -229,6 +243,13 @@ export const createMessageController = () => {
           filename: payload.document_name,
           isGroup: payload.is_group,
         });
+        recordOutgoingMessage({
+          session: payload.session,
+          id: (response as any)?.key?.id,
+          to: payload.to,
+          preview: payload.text || payload.document_name || "[document]",
+          category: "document",
+        });
 
         return c.json({
           data: response,
@@ -276,6 +297,13 @@ export const createMessageController = () => {
           media: payload.video_url,
           isGroup: payload.is_group,
         });
+        recordOutgoingMessage({
+          session: payload.session,
+          id: (response as any)?.key?.id,
+          to: payload.to,
+          preview: payload.text || "[video]",
+          category: "video",
+        });
 
         return c.json({
           data: response,
@@ -312,6 +340,13 @@ export const createMessageController = () => {
           to: payload.to,
           media: payload.image_url,
           isGroup: payload.is_group,
+        });
+        recordOutgoingMessage({
+          session: payload.session,
+          id: (response as any)?.key?.id,
+          to: payload.to,
+          preview: "[sticker]",
+          category: "sticker",
         });
 
         return c.json({
