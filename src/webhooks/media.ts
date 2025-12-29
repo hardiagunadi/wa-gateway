@@ -2,8 +2,12 @@ import type { MessageReceived } from "wa-multi-session";
 
 const baseMediaPath = "./media/";
 
+const hasMediaKey = (media?: { mediaKey?: Uint8Array | null }) =>
+  Boolean(media?.mediaKey && media.mediaKey.length > 0);
+
 export const handleWebhookImageMessage = async (message: MessageReceived) => {
-  if (message.message?.imageMessage) {
+  const image = message.message?.imageMessage;
+  if (image && hasMediaKey(image)) {
     const baseMediaName = `${message.key.id}`;
 
     const fileName = `${baseMediaName}.jpg`;
@@ -14,7 +18,8 @@ export const handleWebhookImageMessage = async (message: MessageReceived) => {
 };
 
 export const handleWebhookVideoMessage = async (message: MessageReceived) => {
-  if (message.message?.videoMessage) {
+  const video = message.message?.videoMessage;
+  if (video && hasMediaKey(video)) {
     const baseMediaName = `${message.key.id}`;
 
     const fileName = `${baseMediaName}.mp4`;
@@ -27,7 +32,8 @@ export const handleWebhookVideoMessage = async (message: MessageReceived) => {
 export const handleWebhookDocumentMessage = async (
   message: MessageReceived
 ) => {
-  if (message.message?.documentMessage) {
+  const document = message.message?.documentMessage;
+  if (document && hasMediaKey(document)) {
     const baseMediaName = `${message.key.id}`;
 
     const fileName = `${baseMediaName}`;
@@ -38,7 +44,8 @@ export const handleWebhookDocumentMessage = async (
 };
 
 export const handleWebhookAudioMessage = async (message: MessageReceived) => {
-  if (message.message?.audioMessage) {
+  const audio = message.message?.audioMessage;
+  if (audio && hasMediaKey(audio)) {
     const baseMediaName = `${message.key.id}`;
 
     const fileName = `${baseMediaName}.mp3`;
