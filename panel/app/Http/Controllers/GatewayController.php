@@ -503,7 +503,7 @@ class GatewayController extends Controller
 
         $data = $request->validate([
             'device_name' => ['nullable', 'string'],
-            'webhook_base_url' => ['required', 'string'],
+            'webhook_base_url' => ['nullable', 'string'],
             'tracking_webhook_base_url' => ['nullable', 'string'],
             'device_status_webhook_base_url' => ['nullable', 'string'],
             'api_key' => ['nullable', 'string'],
@@ -527,9 +527,15 @@ class GatewayController extends Controller
             $deviceName = $existing['deviceName'] ?? null;
         }
 
+        $webhookBaseUrl = $data['webhook_base_url'] ?? null;
+        $webhookBaseUrl = is_string($webhookBaseUrl) ? trim($webhookBaseUrl) : $webhookBaseUrl;
+        if ($webhookBaseUrl === '') {
+            $webhookBaseUrl = null;
+        }
+
         $config = [
             'deviceName' => $deviceName,
-            'webhookBaseUrl' => $data['webhook_base_url'],
+            'webhookBaseUrl' => $webhookBaseUrl,
             'trackingWebhookBaseUrl' => isset($data['tracking_webhook_base_url']) && trim((string) $data['tracking_webhook_base_url']) !== ''
                 ? trim((string) $data['tracking_webhook_base_url'])
                 : ($existing['trackingWebhookBaseUrl'] ?? null),

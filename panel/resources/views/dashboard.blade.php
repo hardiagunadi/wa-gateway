@@ -516,7 +516,7 @@
                             <div class=\"col-12\">
                                 <label class=\"form-label text-muted small\">Webhook URL (Incoming & Auto Reply)</label>
                                 <div class=\"input-group\">
-                                    <input id=\"webhook_base_url\" name=\"webhook_base_url\" type=\"text\" value=\"${webhook.replace(/\\\"/g,'&quot;')}\" class=\"form-control\" required>
+                                    <input id=\"webhook_base_url\" name=\"webhook_base_url\" type=\"text\" value=\"${webhook.replace(/\\\"/g,'&quot;')}\" class=\"form-control\" placeholder=\"kosong jika tidak pakai webhook\">
                                     <button type=\"button\" class=\"btn btn-outline-secondary btn-test-webhook\" data-type=\"base\" data-session=\"${encodeURIComponent(session)}\">Test</button>
                                 </div>
                                 <p class=\"text-muted small mb-0 mt-1\">Endpoint test: <span class=\"text-monospace\">/message</span></p>
