@@ -121,6 +121,29 @@ class GatewayController extends Controller
             $sessionConfigs[$session] = $store->get($session);
         }
 
+        $ownerships = [];
+        $users = [];
+        if ($this->isAdminUser($user)) {
+            $users = User::orderBy('name')->get(['id', 'name', 'email', 'role']);
+            $ownerships = DeviceOwnership::with('user:id,name,email,role')
+                ->whereIn('session_id', $sessions)
+                ->get()
+                ->mapWithKeys(function (DeviceOwnership $ownership) {
+                    $owner = $ownership->user;
+                    return [
+                        $ownership->session_id => $owner
+                            ? [
+                                'id' => $owner->id,
+                                'name' => $owner->name,
+                                'email' => $owner->email,
+                                'role' => $owner->role,
+                            ]
+                            : null,
+                    ];
+                })
+                ->all();
+        }
+
         return view('devices', [
             'sessions' => $sessions,
             'health' => $health,
@@ -140,6 +163,8 @@ class GatewayController extends Controller
             ],
             'resetSessions' => config('gateway.password_reset_sessions', []),
             'permissionWarnings' => $this->permissionWarnings(),
+            'ownerships' => $ownerships,
+            'users' => $users,
         ]);
     }
 
@@ -344,6 +369,35 @@ class GatewayController extends Controller
                 ->route('devices.manage')
                 ->withErrors(['device' => $e->getMessage()]);
         }
+    }
+
+    public function transferDeviceOwnership(Request $request, string $device): RedirectResponse
+    {
+        if (!$this->isAdminUser($request->user())) {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['device' => 'Hanya admin yang boleh memindahkan kepemilikan device.']);
+        }
+
+        $data = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $sessionId = trim($device);
+        if ($sessionId === '') {
+            return redirect()
+                ->route('devices.manage')
+                ->withErrors(['device' => 'ID device tidak valid.']);
+        }
+
+        DeviceOwnership::updateOrCreate(
+            ['session_id' => $sessionId],
+            ['user_id' => $data['user_id']]
+        );
+
+        return redirect()
+            ->route('devices.manage')
+            ->with('status', "Kepemilikan device {$sessionId} dipindahkan.");
     }
 
     public function deviceStatus(Request $request): JsonResponse

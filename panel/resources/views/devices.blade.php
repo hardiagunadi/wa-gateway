@@ -186,6 +186,10 @@
                     $cfg = $sessionConfigs[$session] ?? [];
                     $deviceName = $cfg['deviceName'] ?? null;
                     $deviceName = is_string($deviceName) && trim($deviceName) !== '' ? trim($deviceName) : null;
+                    $owner = $ownerships[$session] ?? null;
+                    $ownerLabel = $owner
+                        ? trim(($owner['name'] ?? '-') . ' - ' . ($owner['email'] ?? '-'))
+                        : 'Belum ada pemilik';
                     $badgeClass = match($st) {
                         'connected' => 'status-connected',
                         'connecting' => 'status-connecting',
@@ -215,6 +219,9 @@
                                     <p class="fw-semibold mb-0">{{ $deviceName ?? $session }}</p>
                                     <p class="text-muted small mb-0 text-monospace">#{{ $session }}</p>
                                     <p class="device-phone text-monospace small mb-1">{{ $userDisplay }}</p>
+                                    @if(!empty($isAdmin))
+                                        <p class="text-muted small mb-0">Owner: {{ $ownerLabel }}</p>
+                                    @endif
                                 </div>
                             </div>
                             <span class="badge badge-pill device-badge {{ $badgeClass }}">{{ ucfirst($st) }}</span>
@@ -240,6 +247,20 @@
                                 <button class="btn btn-danger btn-sm" title="Delete" aria-label="Delete"><i class="fas fa-trash"></i></button>
                             </form>
                         </div>
+                        @if(!empty($isAdmin))
+                            <form method="POST" action="{{ route('devices.transfer', $session) }}" class="mt-2 d-flex flex-wrap align-items-center gap-2">
+                                @csrf
+                                <select name="user_id" class="form-select form-select-sm" required>
+                                    <option value="" disabled {{ empty($owner) ? 'selected' : '' }}>Pilih pemilik</option>
+                                    @foreach ($users as $member)
+                                        <option value="{{ $member->id }}" {{ ($owner['id'] ?? null) === $member->id ? 'selected' : '' }}>
+                                            {{ $member->name }} - {{ $member->email }} ({{ $member->role }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <button class="btn btn-outline-primary btn-sm">Pindah</button>
+                            </form>
+                        @endif
                     </div>
                 </div>
             @empty
