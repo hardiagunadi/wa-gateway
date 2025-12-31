@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -28,7 +29,21 @@ class AuthController extends Controller
         $data = $request->validate([
             'username' => ['required', 'string'],
             'password' => ['required', 'string'],
+            'g-recaptcha-response' => ['required', 'string'],
         ]);
+
+        $recaptchaSecret = config('services.recaptcha.secret_key');
+        if (!$recaptchaSecret) {
+            return back()
+                ->withErrors(['g-recaptcha-response' => 'reCAPTCHA belum dikonfigurasi.'])
+                ->withInput(['username' => $data['username']]);
+        }
+
+        if (!$this->verifyRecaptcha($data['g-recaptcha-response'], $request->ip(), $recaptchaSecret)) {
+            return back()
+                ->withErrors(['g-recaptcha-response' => 'Verifikasi reCAPTCHA gagal. Coba lagi.'])
+                ->withInput(['username' => $data['username']]);
+        }
 
         $user = User::where('email', $data['username'])
             ->orWhere('name', $data['username'])
@@ -129,6 +144,23 @@ class AuthController extends Controller
         return redirect()
             ->route('login')
             ->with('status', 'Password baru sudah dikirim ke WhatsApp Anda.');
+    }
+
+    private function verifyRecaptcha(string $token, ?string $ip, string $secret): bool
+    {
+        $response = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+            'secret' => $secret,
+            'response' => $token,
+            'remoteip' => $ip,
+        ]);
+
+        if (!$response->ok()) {
+            return false;
+        }
+
+        $payload = $response->json();
+
+        return isset($payload['success']) && $payload['success'] === true;
     }
 
     private function resolvePasswordResetSession(): ?string

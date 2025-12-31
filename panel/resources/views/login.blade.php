@@ -65,6 +65,17 @@
                             <p class="text-danger small mt-1 mb-0">{{ $message }}</p>
                         @enderror
                     </div>
+                    <div class="mb-3">
+                        @php($recaptchaSiteKey = config('services.recaptcha.site_key'))
+                        @if($recaptchaSiteKey)
+                            <div class="g-recaptcha" data-sitekey="{{ $recaptchaSiteKey }}"></div>
+                        @else
+                            <div class="alert alert-warning small mb-0">reCAPTCHA belum dikonfigurasi.</div>
+                        @endif
+                        @error('g-recaptcha-response')
+                            <p class="text-danger small mt-2 mb-0">{{ $message }}</p>
+                        @enderror
+                    </div>
                     <button type="submit" class="btn btn-primary w-100">Masuk</button>
                 </form>
 
@@ -75,6 +86,7 @@
         </div>
     </div>
 </div>
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (() => {
