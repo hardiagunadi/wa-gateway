@@ -32,8 +32,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/devices/create-json', [GatewayController::class, 'createDeviceJson'])->name('devices.create_json');
     Route::post('/devices/{device}/delete', [GatewayController::class, 'deleteDevice'])->name('devices.delete');
     Route::post('/devices/{device}/transfer', [GatewayController::class, 'transferDeviceOwnership'])->name('devices.transfer');
-    Route::post('/gateway/base', [GatewayController::class, 'updateGatewayBase'])->name('gateway.update_base');
-    Route::post('/gateway/reset-sessions', [GatewayController::class, 'updatePasswordResetSessions'])->name('gateway.update_reset_sessions');
+    Route::post('/panel/settings/gateway-base', [GatewayController::class, 'updateGatewayBase'])->name('gateway.update_base');
+    Route::post('/panel/settings/reset-sessions', [GatewayController::class, 'updatePasswordResetSessions'])->name('gateway.update_reset_sessions');
     Route::get('/devices/status', [GatewayController::class, 'deviceStatus'])->name('devices.status');
     Route::post('/server/start', [GatewayController::class, 'startServer'])->name('server.start');
     Route::post('/server/stop', [GatewayController::class, 'stopServer'])->name('server.stop');
