@@ -18,6 +18,37 @@ import {
 } from "./controllers/wa-gateway";
 import { startWaGatewayScheduler } from "./wa-gateway/scheduler";
 
+const isBaileysConnectionClosed = (err: unknown) => {
+  const boom = err as {
+    isBoom?: boolean;
+    output?: { statusCode?: number; payload?: { message?: string } };
+  };
+  return Boolean(
+    boom?.isBoom &&
+      boom?.output?.statusCode === 428 &&
+      boom?.output?.payload?.message === "Connection Closed"
+  );
+};
+
+const handleFatalError = (err: unknown, origin: string) => {
+  if (isBaileysConnectionClosed(err)) {
+    console.warn(
+      `${origin}: bailey's socket closed while sending ACK; ignoring.`
+    );
+    return;
+  }
+
+  console.error(`${origin}:`, err);
+  process.exit(1);
+};
+
+process.on("unhandledRejection", (reason) =>
+  handleFatalError(reason, "unhandledRejection")
+);
+process.on("uncaughtException", (err) =>
+  handleFatalError(err, "uncaughtException")
+);
+
 const app = new Hono();
 
 app.use(

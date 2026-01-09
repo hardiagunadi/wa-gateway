@@ -533,20 +533,102 @@ async function onMessageUpdated(update: MessageUpdated) {
     .catch(console.error);
 }
 
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 60 * 1000;
+const RECONNECT_JITTER_MS = 500;
+
+type ReconnectState = {
+  attempts: number;
+  timer?: NodeJS.Timeout;
+};
+
+const reconnectState = new Map<string, ReconnectState>();
+
+const getReconnectDelayMs = (attempt: number) => {
+  const exp = RECONNECT_BASE_DELAY_MS * 2 ** Math.max(attempt - 1, 0);
+  const capped = Math.min(exp, RECONNECT_MAX_DELAY_MS);
+  const jitter = Math.floor(Math.random() * RECONNECT_JITTER_MS);
+  return capped + jitter;
+};
+
+const clearReconnectTimer = (sessionId: string) => {
+  const state = reconnectState.get(sessionId);
+  if (!state?.timer) return;
+  clearTimeout(state.timer);
+  state.timer = undefined;
+};
+
+const resetReconnectState = (sessionId: string) => {
+  const state = reconnectState.get(sessionId);
+  if (!state) return;
+  if (state.timer) clearTimeout(state.timer);
+  reconnectState.delete(sessionId);
+};
+
+const scheduleReconnect = async (sessionId: string) => {
+  const stored = await listStoredSessions().catch(() => []);
+  if (!stored.includes(sessionId)) {
+    resetReconnectState(sessionId);
+    return;
+  }
+
+  const state = reconnectState.get(sessionId) || { attempts: 0 };
+  if (state.timer) return;
+
+  const attempt = state.attempts + 1;
+  state.attempts = attempt;
+
+  const delay = getReconnectDelayMs(attempt);
+
+  state.timer = setTimeout(async () => {
+    state.timer = undefined;
+    try {
+      const existing = await whatsapp.getSessionById(sessionId);
+      const status = (existing as any)?.status;
+      if (status === "connected" || status === "connecting") {
+        return;
+      }
+      await whatsapp.startSession(sessionId, { printQR: false });
+    } catch (err) {
+      console.error(`[${sessionId}] reconnect attempt failed`, err);
+    } finally {
+      const existing = await whatsapp.getSessionById(sessionId);
+      const status = (existing as any)?.status;
+      if (status !== "connected" && status !== "connecting") {
+        scheduleReconnect(sessionId).catch((err) =>
+          console.error(`[${sessionId}] reconnect reschedule failed`, err)
+        );
+      }
+    }
+  }, delay);
+
+  reconnectState.set(sessionId, state);
+  console.warn(
+    `[${sessionId}] reconnect scheduled in ${Math.round(
+      delay / 1000
+    )}s (attempt ${attempt})`
+  );
+};
+
 export const whatsapp = new Whatsapp({
   adapter: new SQLiteAdapter(),
 
   onConnecting(sessionId) {
     console.log(`[${sessionId}] connecting`);
     sendDeviceStatus(sessionId, "connecting");
+    clearReconnectTimer(sessionId);
   },
   onConnected(sessionId) {
     console.log(`[${sessionId}] connected`);
     sendDeviceStatus(sessionId, "connected");
+    resetReconnectState(sessionId);
   },
   onDisconnected(sessionId) {
     console.log(`[${sessionId}] disconnected`);
     sendDeviceStatus(sessionId, "disconnected");
+    scheduleReconnect(sessionId).catch((err) =>
+      console.error(`[${sessionId}] reconnect schedule failed`, err)
+    );
   },
 
   onMessageReceived: onIncomingMessage,
