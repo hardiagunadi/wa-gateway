@@ -1,0 +1,38 @@
+[Unit]
+Description=WA Gateway - WhatsApp Multi-Session Gateway
+Documentation=https://github.com/hardiagunadi/wa-gateway
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/wa-gateway
+ExecStart=/usr/bin/node --import /var/www/wa-gateway/node_modules/tsx/dist/loader.mjs /var/www/wa-gateway/src/index.ts
+Restart=always
+RestartSec=5
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Environment
+Environment=NODE_ENV=production
+EnvironmentFile=-/var/www/wa-gateway/.env
+
+# Logging
+StandardOutput=append:/var/www/wa-gateway/logs/wa-gateway.log
+StandardError=append:/var/www/wa-gateway/logs/wa-gateway-error.log
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/wa-gateway
+PrivateTmp=true
+
+# Graceful shutdown
+TimeoutStopSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

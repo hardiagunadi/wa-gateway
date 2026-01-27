@@ -16,7 +16,7 @@ import {
   createWaGatewayCompatController,
   createWaGatewayCompatV2Controller,
 } from "./controllers/wa-gateway";
-import { startWaGatewayScheduler } from "./wa-gateway/scheduler";
+import { startWaGatewayScheduler, stopWaGatewayScheduler } from "./wa-gateway/scheduler";
 
 const app = new Hono();
 
@@ -73,7 +73,7 @@ const port = env.PORT;
 
 startWaGatewayScheduler();
 
-serve(
+const server = serve(
   {
     fetch: app.fetch,
     port,
@@ -82,3 +82,45 @@ serve(
     console.log(`Server is running on http://localhost:${info.port}`);
   }
 );
+
+// Graceful shutdown handling
+let isShuttingDown = false;
+
+const gracefulShutdown = (signal: string) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  console.log(`\n${signal} received. Starting graceful shutdown...`);
+
+  // Stop the scheduler first
+  stopWaGatewayScheduler();
+
+  // Close the server
+  server.close((err) => {
+    if (err) {
+      console.error("Error during server close:", err);
+      process.exit(1);
+    }
+    console.log("Server closed successfully");
+    process.exit(0);
+  });
+
+  // Force exit after 10 seconds if graceful shutdown fails
+  setTimeout(() => {
+    console.error("Forced shutdown after timeout");
+    process.exit(1);
+  }, 10000);
+};
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+// Handle uncaught exceptions and unhandled rejections
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  gracefulShutdown("uncaughtException");
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});

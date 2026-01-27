@@ -15,6 +15,7 @@ import {
 } from "./sender";
 
 let started = false;
+let schedulerInterval: ReturnType<typeof setInterval> | null = null;
 
 async function processDueSchedules() {
   const all = await listSchedules();
@@ -124,9 +125,18 @@ async function trySendSchedule(record: WaGatewayScheduleRecord) {
 export const startWaGatewayScheduler = (intervalMs = 1000) => {
   if (started) return;
   started = true;
-  setInterval(() => {
+  schedulerInterval = setInterval(() => {
     processDueSchedules().catch((err) =>
       console.error("wa-gateway scheduler error", err)
     );
   }, intervalMs);
+};
+
+export const stopWaGatewayScheduler = () => {
+  if (schedulerInterval) {
+    clearInterval(schedulerInterval);
+    schedulerInterval = null;
+    started = false;
+    console.log("Scheduler stopped");
+  }
 };

@@ -3,3 +3,5 @@ wa_credentials/
 .env
 media/*
 !media/.gitkeep
+logs/*
+!logs/.gitkeep
