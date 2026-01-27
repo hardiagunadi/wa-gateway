@@ -1,3 +1,7 @@
+const path = require("path");
+
+const rootDir = __dirname;
+
 module.exports = {
   apps: [
     {
@@ -5,7 +9,7 @@ module.exports = {
       script: "src/index.ts",
       interpreter: "node",
       interpreter_args: "--import ./node_modules/tsx/dist/loader.mjs",
-      cwd: "/var/www/wa-gateway",
+      cwd: rootDir,
       instances: 1,
       autorestart: true,
       watch: false,
@@ -18,8 +22,8 @@ module.exports = {
       max_restarts: 10,
       min_uptime: "10s",
       // Logging
-      error_file: "/var/www/wa-gateway/logs/pm2-error.log",
-      out_file: "/var/www/wa-gateway/logs/pm2-out.log",
+      error_file: path.join(rootDir, "logs/pm2-error.log"),
+      out_file: path.join(rootDir, "logs/pm2-out.log"),
       merge_logs: true,
       log_date_format: "YYYY-MM-DD HH:mm:ss Z",
       // Graceful shutdown
