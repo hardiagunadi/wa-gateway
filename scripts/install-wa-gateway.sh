@@ -145,6 +145,16 @@ EOF
   fi
 }
 
+install_pm2() {
+  if has_cmd pm2; then
+    log "PM2 sudah terinstal, skip."
+    return
+  fi
+
+  log "Instal PM2 secara global"
+  as_root npm install -g pm2
+}
+
 install_gateway_deps() {
   cd "$REPO_DIR"
   if [[ -f package-lock.json ]]; then
@@ -159,6 +169,15 @@ install_gateway_deps() {
     warn "Menjalankan npm audit fix (opsional) bisa mengubah dependency/lockfile."
     npm audit fix || true
   fi
+}
+
+setup_gateway_logs() {
+  local logs_dir="${REPO_DIR}/logs"
+  log "Siapkan folder logs gateway"
+  mkdir -p "$logs_dir"
+  touch "$logs_dir/.gitkeep"
+  as_root chown -R "${EXPECTED_USER}:${WEB_GROUP}" "$logs_dir"
+  as_root chmod -R 2775 "$logs_dir"
 }
 
 prepare_panel_env() {
@@ -259,6 +278,36 @@ set_permissions() {
   fi
 }
 
+setup_pm2_gateway() {
+  cd "$REPO_DIR"
+
+  # Stop existing PM2 process if running
+  if pm2 list 2>/dev/null | grep -q "wa-gateway"; then
+    log "Stop PM2 wa-gateway yang sudah berjalan"
+    pm2 stop wa-gateway || true
+    pm2 delete wa-gateway || true
+  fi
+
+  log "Start gateway dengan PM2"
+  pm2 start ecosystem.config.js
+
+  log "Setup PM2 startup (auto-start saat reboot)"
+  # Generate startup script
+  local startup_cmd
+  startup_cmd=$(pm2 startup systemd -u "${EXPECTED_USER}" --hp "/home/${EXPECTED_USER}" 2>&1 | grep -E "^sudo" | head -n1 || true)
+
+  if [[ -n "$startup_cmd" ]]; then
+    log "Jalankan: $startup_cmd"
+    eval "$startup_cmd" || warn "Gagal setup PM2 startup, mungkin perlu dijalankan manual"
+  fi
+
+  log "Simpan PM2 process list"
+  pm2 save
+
+  log "PM2 gateway status:"
+  pm2 list
+}
+
 main() {
   require_deploy_user
   require_ubuntu
@@ -274,16 +323,31 @@ main() {
     as_root apt-get install -y perl
   fi
   install_node
+  install_pm2
   install_php
   install_composer
   prepare_gateway_env
   install_gateway_deps
+  setup_gateway_logs
   prepare_panel_env
   setup_panel
   set_permissions
+  setup_pm2_gateway
 
-  log "Installer selesai. Jalankan panel: php artisan serve --host 0.0.0.0 --port 8000 (di folder panel)"
-  log "Jalankan gateway: node --import node_modules/tsx/dist/loader.mjs src/index.ts (di root repo) atau gunakan tombol Start di panel."
+  log ""
+  log "=============================================="
+  log "Installer selesai!"
+  log "=============================================="
+  log ""
+  log "Gateway WA sudah berjalan dengan PM2 dan akan auto-restart jika crash."
+  log ""
+  log "Perintah PM2 yang berguna:"
+  log "  pm2 status          - Lihat status proses"
+  log "  pm2 logs wa-gateway - Lihat logs"
+  log "  pm2 restart wa-gateway - Restart gateway"
+  log "  pm2 stop wa-gateway - Stop gateway"
+  log ""
+  log "Jalankan panel: php artisan serve --host 0.0.0.0 --port 8000 (di folder panel)"
 }
 
 main "$@"
