@@ -7,6 +7,8 @@ use Symfony\Component\Process\Process;
 
 class NpmService
 {
+    private const LOG_ROTATE_BYTES = 5 * 1024 * 1024;
+
     private string $pidFile;
     private string $logFile;
 
@@ -33,6 +35,8 @@ class NpmService
         if (!is_dir(dirname($this->logFile))) {
             mkdir(dirname($this->logFile), 0755, true);
         }
+
+        $this->rotateLogIfNeeded();
 
         $command = $this->buildCommand();
 
@@ -143,6 +147,31 @@ class NpmService
     private function buildCommand(): string
     {
         return ltrim($this->command);
+    }
+
+    private function rotateLogIfNeeded(): void
+    {
+        if (!is_file($this->logFile)) {
+            return;
+        }
+
+        $size = filesize($this->logFile);
+        if ($size === false || $size <= self::LOG_ROTATE_BYTES) {
+            return;
+        }
+
+        $dir = dirname($this->logFile);
+        $timestamp = date('Ymd-His');
+        $rotated = $dir . DIRECTORY_SEPARATOR . 'npm-server-' . $timestamp . '.log';
+        $suffix = 1;
+        while (file_exists($rotated)) {
+            $rotated = $dir . DIRECTORY_SEPARATOR . 'npm-server-' . $timestamp . '-' . $suffix . '.log';
+            $suffix += 1;
+        }
+
+        if (!rename($this->logFile, $rotated)) {
+            throw new RuntimeException('Failed to rotate npm server log.');
+        }
     }
 
     /**
