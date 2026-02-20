@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APT_UPDATED=0
 EXPECTED_USER="${EXPECTED_USER:-deploy}"
-PHP_VERSION="${PHP_VERSION:-8.3}"
+PHP_VERSION="${PHP_VERSION:-8.4}"
 COMPOSER_NO_DEV="${COMPOSER_NO_DEV:-1}"
 RUN_NPM_AUDIT_FIX="${RUN_NPM_AUDIT_FIX:-0}"
 WEB_GROUP="${WEB_GROUP:-www-data}"
@@ -180,6 +180,16 @@ setup_gateway_logs() {
   as_root chmod -R 2775 "$logs_dir"
 }
 
+set_env_value() {
+  # set_env_value <file> <KEY> <value>  – upsert satu baris KEY=value
+  local file="$1" key="$2" value="$3"
+  if grep -qE "^${key}=" "$file"; then
+    perl -pi -e "s|^${key}=.*|${key}=${value}|" "$file"
+  else
+    printf "\n%s=%s\n" "$key" "$value" >> "$file"
+  fi
+}
+
 prepare_panel_env() {
   cd "$REPO_DIR/panel"
   if [[ ! -f .env ]]; then
@@ -187,16 +197,19 @@ prepare_panel_env() {
     cp .env.example .env
   fi
 
+  # Sinkron API key gateway → panel
   local key_gateway
   key_gateway=$(cd "$REPO_DIR" && grep -E '^KEY=' .env | head -n1 | cut -d'=' -f2- || true)
   if [[ -n "$key_gateway" ]]; then
     log "Sinkron KEY ke panel (.env)"
-    if grep -qE '^WA_GATEWAY_KEY=' .env; then
-      perl -pi -e "s|^WA_GATEWAY_KEY=.*|WA_GATEWAY_KEY=$key_gateway|" .env
-    else
-      printf "\nWA_GATEWAY_KEY=%s\n" "$key_gateway" >> .env
-    fi
+    set_env_value .env "WA_GATEWAY_KEY" "$key_gateway"
   fi
+
+  # Tulis PM2 paths absolut agar panel bisa mengelola proses PM2
+  log "Set PM2 paths di panel (.env)"
+  set_env_value .env "PM2_APP_NAME"    "wa-gateway"
+  set_env_value .env "PM2_CONFIG_FILE" "${REPO_DIR}/ecosystem.config.js"
+  set_env_value .env "PM2_WORKDIR"     "${REPO_DIR}"
 }
 
 setup_panel() {
@@ -339,15 +352,24 @@ main() {
   log "Installer selesai!"
   log "=============================================="
   log ""
-  log "Gateway WA sudah berjalan dengan PM2 dan akan auto-restart jika crash."
+  log "Gateway WA sudah berjalan via PM2 dan akan auto-restart jika crash."
   log ""
-  log "Perintah PM2 yang berguna:"
-  log "  pm2 status          - Lihat status proses"
-  log "  pm2 logs wa-gateway - Lihat logs"
+  log "Kontrol server dari panel (browser):"
+  log "  Buka dashboard panel → tombol Start / Restart / Stop di card 'WA Gateway Server (PM2)'"
+  log ""
+  log "Kontrol manual via CLI:"
+  log "  pm2 status             - Lihat status semua proses"
+  log "  pm2 logs wa-gateway    - Lihat log output"
   log "  pm2 restart wa-gateway - Restart gateway"
-  log "  pm2 stop wa-gateway - Stop gateway"
+  log "  pm2 stop    wa-gateway - Stop gateway"
+  log "  pm2 start   wa-gateway - Start kembali setelah stop"
   log ""
-  log "Jalankan panel: php artisan serve --host 0.0.0.0 --port 8000 (di folder panel)"
+  log "Lokasi log PM2:"
+  log "  Output : ${REPO_DIR}/logs/pm2-out.log"
+  log "  Error  : ${REPO_DIR}/logs/pm2-error.log"
+  log ""
+  log "Jalankan panel:"
+  log "  cd ${REPO_DIR}/panel && php artisan serve --host 0.0.0.0 --port 8000"
 }
 
 main "$@"
