@@ -175,7 +175,10 @@
         <a href="#v2">Endpoint V2</a>
         <a href="#jadwal">Jadwal & otomatisasi</a>
         <a href="#webhook">Webhook</a>
+        <a href="#antispam">Anti-Spam</a>
+        <a href="#pm2">PM2 & Server</a>
         <a href="#checklist">Checklist</a>
+        <a href="index.html" style="border-color:rgba(110,243,197,0.3);color:#6ef3c5">← Docs Hub</a>
       </nav>
     </header>
 
@@ -445,15 +448,98 @@ curl -X POST http://localhost:5001/api/v2/group/text \
       </ul>
     </section>
 
+    <section id="antispam" class="card">
+      <div class="section-title"><span></span><h2>Anti-Spam & Rate Limiting</h2></div>
+      <p>Setiap sesi memiliki pengaturan anti-spam yang dapat dikonfigurasi via <strong>Device Settings</strong> di panel. Pengaturan disimpan ke database dan dibaca saat server Node.js restart.</p>
+      <div class="grid">
+        <div>
+          <h3>Parameter</h3>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <thead>
+              <tr style="color:var(--muted);border-bottom:1px solid var(--border)">
+                <th style="text-align:left;padding:6px 8px">Parameter</th>
+                <th style="text-align:left;padding:6px 8px">Default</th>
+                <th style="text-align:left;padding:6px 8px">Keterangan</th>
+              </tr>
+            </thead>
+            <tbody style="color:var(--text)">
+              <tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:6px 8px"><code>antiSpamEnabled</code></td>
+                <td style="padding:6px 8px">false</td>
+                <td style="padding:6px 8px">On/off per device</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:6px 8px"><code>antiSpamMaxPerMinute</code></td>
+                <td style="padding:6px 8px">20</td>
+                <td style="padding:6px 8px">Maks pesan per menit per sesi</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:6px 8px"><code>antiSpamDelayMs</code></td>
+                <td style="padding:6px 8px">1000</td>
+                <td style="padding:6px 8px">Delay minimum (ms) antar pengiriman</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 8px"><code>antiSpamIntervalSeconds</code></td>
+                <td style="padding:6px 8px">0</td>
+                <td style="padding:6px 8px">Cooldown (detik) kirim ke penerima yang sama. 0 = nonaktif</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>Perilaku Antrian</h3>
+          <p class="small">Jika rate limit tercapai, pesan <strong>tidak ditolak</strong>. Server akan menunggu (<em>async sleep</em>) hingga slot tersedia, lalu melanjutkan pengiriman. Klien API tidak perlu menangani retry.</p>
+          <p class="small">Urutan pemeriksaan per-request:</p>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>Cooldown per penerima (jika <code>antiSpamIntervalSeconds &gt; 0</code>)</li>
+            <li>Delay minimum antar pesan (<code>antiSpamDelayMs</code>)</li>
+            <li>Rate limit per menit (<code>antiSpamMaxPerMinute</code>)</li>
+          </ol>
+          <p class="small" style="margin-top:10px">State rate limiter bersifat <em>in-memory</em> (reset saat server restart). Pengaturannya sendiri tersimpan di database.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="pm2" class="card">
+      <div class="section-title"><span></span><h2>PM2 & Server Management</h2></div>
+      <p>Server Node.js dikelola oleh <strong>PM2</strong> dan dapat dikontrol langsung dari dashboard panel (tombol Start / Restart / Stop) tanpa perlu akses terminal.</p>
+      <div class="grid">
+        <div>
+          <h3>Kontrol dari Panel</h3>
+          <p class="small">Dashboard → card <em>"WA Gateway Server (PM2)"</em></p>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>Start</strong> — daftar dan jalankan via <code>ecosystem.config.js</code></li>
+            <li><strong>Restart</strong> — restart proses yang sudah berjalan</li>
+            <li><strong>Stop</strong> — hentikan tanpa menghapus dari PM2</li>
+          </ul>
+          <p class="small" style="margin-top:8px">Status yang ditampilkan: PM2 status, PID, uptime, jumlah restart, memory, CPU.</p>
+        </div>
+        <div>
+          <h3>Kontrol via CLI</h3>
+          <pre><code>pm2 status
+pm2 logs wa-gateway
+pm2 restart wa-gateway
+pm2 stop    wa-gateway
+pm2 start   wa-gateway</code></pre>
+          <p class="small">File log: <code>logs/pm2-out.log</code> &amp; <code>logs/pm2-error.log</code></p>
+        </div>
+      </div>
+      <h3>Konfigurasi PM2 panel (<code>panel/.env</code>)</h3>
+      <pre><code>PM2_APP_NAME=wa-gateway
+PM2_CONFIG_FILE=/var/www/wa-gateway/ecosystem.config.js
+PM2_WORKDIR=/var/www/wa-gateway</code></pre>
+    </section>
+
     <section id="checklist" class="card">
       <div class="section-title"><span></span><h2>Checklist implementasi</h2></div>
       <ol>
-        <li>Jalankan wa-gateway, set <code>KEY</code> jika ingin master key.</li>
+        <li>Jalankan wa-gateway via PM2: <code>pm2 start ecosystem.config.js</code>. Set <code>KEY</code> di <code>.env</code> jika ingin master key.</li>
         <li>Buat device via <code>/api/device/create</code>, simpan token.</li>
         <li>Scan QR via <code>/api/device/scan</code> hingga status online.</li>
-        <li>Pasang webhook (opsional) untuk event masuk.</li>
+        <li>Konfigurasi webhook dan anti-spam di <strong>Device Settings</strong> panel (opsional).</li>
         <li>Kirim pesan: pilih V1 (form) atau V2 (JSON) sesuai kebutuhan.</li>
         <li>Gunakan <code>/api/device/info</code> dan <code>/api/v2/*</code> untuk monitoring, penjadwalan, dan otomatisasi.</li>
+        <li>Lihat <strong>Message Status Log</strong> di panel untuk memonitor status pengiriman tiap pesan.</li>
       </ol>
     </section>
   </div>

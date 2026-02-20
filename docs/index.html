@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WA Gateway – Dokumentasi</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Space+Grotesk:wght@500;600&display=swap");
+    :root {
+      --bg: #0b1021;
+      --card: #0f172a;
+      --card-soft: #121b32;
+      --muted: #8aa2c0;
+      --text: #e7ecf5;
+      --accent: #6ef3c5;
+      --accent-2: #7aa7ff;
+      --border: rgba(255,255,255,0.06);
+      --shadow: 0 20px 60px rgba(0,0,0,0.35);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Manrope", system-ui, sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(110,243,197,0.10), transparent 30%),
+                  radial-gradient(circle at 80% 0%, rgba(122,167,255,0.10), transparent 28%),
+                  var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+    .page { max-width: 960px; margin: 0 auto 80px; }
+    header {
+      background: linear-gradient(135deg, rgba(110,243,197,0.10), rgba(122,167,255,0.10));
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius)*1.2);
+      padding: 32px 36px;
+      margin-bottom: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    header::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 20% 20%, rgba(110,243,197,0.12), transparent 35%),
+                  radial-gradient(circle at 80% 40%, rgba(122,167,255,0.12), transparent 35%);
+      pointer-events: none;
+    }
+    header h1 {
+      margin: 0 0 6px;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(26px, 4vw, 34px);
+      letter-spacing: 0.3px;
+      position: relative; z-index: 1;
+    }
+    header p { margin: 0; color: var(--muted); position: relative; z-index: 1; }
+    .version-badge {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(110,243,197,0.3);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+      position: relative; z-index: 1;
+    }
+    h2.section-heading {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+    .doc-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      text-decoration: none;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: transform 0.12s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: var(--shadow);
+    }
+    .doc-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(110,243,197,0.3);
+      box-shadow: 0 24px 70px rgba(0,0,0,0.45);
+    }
+    .doc-card .icon { font-size: 28px; }
+    .doc-card .title {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .doc-card .desc { color: var(--muted); font-size: 14px; margin: 0; }
+    .doc-card .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      align-self: flex-start;
+    }
+    .badge-html  { background: rgba(110,243,197,0.12); border: 1px solid rgba(110,243,197,0.3); color: var(--accent); }
+    .badge-md    { background: rgba(122,167,255,0.12); border: 1px solid rgba(122,167,255,0.3); color: var(--accent-2); }
+    .info-card {
+      background: var(--card-soft);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      margin-bottom: 32px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .info-card strong { color: var(--text); }
+    .info-card code {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-family: "Space Grotesk", monospace;
+      font-size: 13px;
+      color: var(--accent);
+    }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 48px;
+    }
+    .changelog {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      margin-bottom: 32px;
+    }
+    .changelog h3 { margin: 0 0 12px; font-family: "Space Grotesk", sans-serif; font-size: 15px; }
+    .changelog ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+    .changelog li { margin-bottom: 6px; }
+    .changelog li strong { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <header>
+      <h1>📡 WA Gateway – Dokumentasi</h1>
+      <p>Panduan lengkap penggunaan API, konfigurasi, dan deployment wa-gateway.</p>
+      <span class="version-badge">v2.0 · Feb 2026</span>
+    </header>
+
+    <div class="info-card">
+      <strong>Akses cepat:</strong> Dokumentasi ini dapat diakses langsung dari browser via
+      <code>/docs/</code> pada panel (contoh: <code>http://localhost:8000/docs/</code>).
+      File HTML dapat dibuka tanpa login.
+    </div>
+
+    <h2 class="section-heading">Dokumen</h2>
+    <div class="grid">
+
+      <a class="doc-card" href="wa-gateway-api-guide.html">
+        <span class="icon">📖</span>
+        <span class="title">Panduan API</span>
+        <p class="desc">Referensi lengkap endpoint V1/V2, autentikasi, device lifecycle, penjadwalan, webhook, dan anti-spam.</p>
+        <span class="badge badge-html">HTML</span>
+      </a>
+
+      <a class="doc-card" href="DEPLOY_CHECKLIST.md">
+        <span class="icon">🚀</span>
+        <span class="title">Checklist Deployment</span>
+        <p class="desc">Langkah-langkah deployment production: PM2, permission, env, PHP, reverse proxy, dan smoke test.</p>
+        <span class="badge badge-md">Markdown</span>
+      </a>
+
+      <a class="doc-card" href="WA_GATEWAY_COMPAT_API.md">
+        <span class="icon">🔌</span>
+        <span class="title">API Kompatibilitas</span>
+        <p class="desc">Dokumentasi endpoint kompatibilitas wa-gateway (device token → session mapping, V1 compat layer).</p>
+        <span class="badge badge-md">Markdown</span>
+      </a>
+
+    </div>
+
+    <h2 class="section-heading">Changelog terbaru</h2>
+    <div class="changelog">
+      <h3>Feb 2026</h3>
+      <ul>
+        <li><strong>Anti-Spam:</strong> Rate limiter per session — max pesan/menit, delay antar pesan, cooldown per penerima. Pesan antri otomatis saat limit tercapai (tidak ditolak).</li>
+        <li><strong>PM2 Integration:</strong> Panel kini mengelola server Node.js via PM2 — tombol Start / Restart / Stop langsung dari dashboard. Status PM2 (uptime, restart count, memory, CPU) ditampilkan real-time.</li>
+        <li><strong>Message Status Log:</strong> Normalisasi status Baileys (numerik &amp; string uppercase), auto-refresh, badge warna per status, filter &amp; reset filter.</li>
+        <li><strong>Anti-Spam via DB:</strong> Pengaturan anti-spam disimpan ke database SQLite agar persisten antar restart panel.</li>
+        <li><strong>Docs:</strong> Halaman dokumentasi kini dapat diakses dari browser via <code>/docs/</code>.</li>
+      </ul>
+    </div>
+
+    <footer>WA Gateway Panel · Hardi Agunadi – Pranata Komputer Kec. Watumalang</footer>
+  </div>
+</body>
+</html>

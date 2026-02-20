@@ -78,6 +78,7 @@
                     @if(!empty($isAdmin))
                         <a href="{{ route('users.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-users me-1"></i> Users</a>
                     @endif
+                    <a href="/docs/" target="_blank" class="btn btn-outline-info btn-sm"><i class="fas fa-book me-1"></i> Docs</a>
                     <a href="{{ route('profile.show') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-user me-1"></i> Profil</a>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf

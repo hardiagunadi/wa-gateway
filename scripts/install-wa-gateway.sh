@@ -180,6 +180,20 @@ setup_gateway_logs() {
   as_root chmod -R 2775 "$logs_dir"
 }
 
+setup_docs_symlink() {
+  local public_docs="${REPO_DIR}/panel/public/docs"
+  if [[ -L "$public_docs" ]]; then
+    log "Symlink docs sudah ada, skip."
+    return
+  fi
+  if [[ -d "$public_docs" ]]; then
+    warn "Folder ${public_docs} sudah ada sebagai direktori biasa, skip symlink."
+    return
+  fi
+  log "Buat symlink panel/public/docs → ../../docs"
+  ln -sf ../../docs "$public_docs"
+}
+
 set_env_value() {
   # set_env_value <file> <KEY> <value>  – upsert satu baris KEY=value
   local file="$1" key="$2" value="$3"
@@ -345,6 +359,7 @@ main() {
   prepare_panel_env
   setup_panel
   set_permissions
+  setup_docs_symlink
   setup_pm2_gateway
 
   log ""
