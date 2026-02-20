@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DeviceAntiSpamSetting;
 use App\Models\DeviceOwnership;
 use App\Models\User;
 use App\Services\GatewayService;
-use App\Services\NpmService;
+use App\Services\Pm2Service;
 use App\Services\SessionConfigStore;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
@@ -42,25 +43,27 @@ class GatewayController extends Controller
             return $id && isset($allowedSessions[$id]);
         }));
 
-        $npm = $this->npm();
+        $pm2   = $this->pm2();
         $store = $this->sessionConfigStore();
         foreach ($sessions as $session) {
             $sessionConfigs[$session] = $store->get($session);
         }
 
-        $npmStatus = $npm->status();
-        if (!$npmStatus['running'] && $health) {
-            // Infer running when API is reachable even if pid file is absent (e.g., started via pm2/systemd).
-            $npmStatus['running'] = true;
-            $npmStatus['pid'] = null;
-            $npmStatus['source'] = 'inferred';
+        $serverStatus = $pm2->status();
+
+        // Jika API aktif tapi PM2 tidak mendeteksi proses (mis. dijalankan manual),
+        // tandai sebagai running agar UI tidak memperlihatkan tombol Start secara salah.
+        if (!$serverStatus['running'] && $health) {
+            $serverStatus['running']   = true;
+            $serverStatus['pm2Status'] = 'online (external)';
+            $serverStatus['pid']       = null;
         }
 
         $logTail = null;
-        $logFile = $npmStatus['logFile'] ?? null;
+        $logFile = $serverStatus['logFile'] ?? null;
         if (is_string($logFile) && $logFile !== '' && is_readable($logFile) && filesize($logFile) > 0) {
             try {
-                $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+                $lines   = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
                 $logTail = implode("\n", array_slice($lines, -30));
             } catch (Throwable) {
                 $logTail = null;
@@ -68,26 +71,26 @@ class GatewayController extends Controller
         }
 
         return view('dashboard', [
-            'sessions' => $sessions,
-            'health' => $health,
-            'apiError' => $apiError,
+            'sessions'        => $sessions,
+            'health'          => $health,
+            'apiError'        => $apiError,
             'sessionStatuses' => $sessionStatuses,
-            'qrData' => session('qr'),
-            'qrSession' => session('qrSession'),
-            'pairingCode' => session('pairingCode'),
-            'pairingSession' => session('pairingSession'),
-            'statusMessage' => session('status'),
-            'autoRefresh' => session('autoRefresh'),
-            'errorsBag' => $request->session()->get('errors'),
-            'npmStatus' => $npmStatus,
-            'sessionConfigs' => $sessionConfigs,
-            'isAdmin' => $this->isAdminUser($user),
-            'gatewayConfig' => [
+            'qrData'          => session('qr'),
+            'qrSession'       => session('qrSession'),
+            'pairingCode'     => session('pairingCode'),
+            'pairingSession'  => session('pairingSession'),
+            'statusMessage'   => session('status'),
+            'autoRefresh'     => session('autoRefresh'),
+            'errorsBag'       => $request->session()->get('errors'),
+            'serverStatus'    => $serverStatus,
+            'sessionConfigs'  => $sessionConfigs,
+            'isAdmin'         => $this->isAdminUser($user),
+            'gatewayConfig'   => [
                 'base' => config('gateway.base_url'),
-                'key' => config('gateway.api_key'),
+                'key'  => config('gateway.api_key'),
             ],
-            'logTail' => $logTail,
-            'permissionWarnings' => $this->permissionWarnings(),
+            'logTail'             => $logTail,
+            'permissionWarnings'  => $this->permissionWarnings(),
         ]);
     }
 
@@ -117,8 +120,10 @@ class GatewayController extends Controller
         }));
 
         $store = $this->sessionConfigStore();
+        $antiSpamSettings = [];
         foreach ($sessions as $session) {
             $sessionConfigs[$session] = $store->get($session);
+            $antiSpamSettings[$session] = DeviceAntiSpamSetting::getForSession($session);
         }
 
         $ownerships = [];
@@ -156,6 +161,7 @@ class GatewayController extends Controller
             'statusMessage' => session('status'),
             'errorsBag' => $request->session()->get('errors'),
             'sessionConfigs' => $sessionConfigs,
+            'antiSpamSettings' => $antiSpamSettings,
             'isAdmin' => $this->isAdminUser($user),
             'gatewayConfig' => [
                 'base' => config('gateway.base_url'),
@@ -565,6 +571,10 @@ class GatewayController extends Controller
             'auto_reply_enabled' => ['sometimes', 'boolean'],
             'tracking_enabled' => ['sometimes', 'boolean'],
             'device_status_enabled' => ['sometimes', 'boolean'],
+            'anti_spam_enabled' => ['sometimes', 'boolean'],
+            'anti_spam_max_per_minute' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'anti_spam_delay_ms' => ['nullable', 'integer', 'min:0', 'max:60000'],
+            'anti_spam_interval_seconds' => ['nullable', 'integer', 'min:0', 'max:86400'],
         ]);
 
         $store = $this->sessionConfigStore();
@@ -587,6 +597,11 @@ class GatewayController extends Controller
             $webhookBaseUrl = null;
         }
 
+        $antiSpamEnabled = $request->boolean('anti_spam_enabled');
+        $antiSpamMaxPerMinute = max(1, (int) ($data['anti_spam_max_per_minute'] ?? 20));
+        $antiSpamDelayMs = max(0, (int) ($data['anti_spam_delay_ms'] ?? 1000));
+        $antiSpamIntervalSeconds = max(0, (int) ($data['anti_spam_interval_seconds'] ?? 0));
+
         $config = [
             'deviceName' => $deviceName,
             'webhookBaseUrl' => $webhookBaseUrl,
@@ -601,9 +616,21 @@ class GatewayController extends Controller
             'autoReplyEnabled' => $request->boolean('auto_reply_enabled'),
             'trackingEnabled' => $request->boolean('tracking_enabled'),
             'deviceStatusEnabled' => $request->boolean('device_status_enabled'),
+            'antiSpamEnabled' => $antiSpamEnabled,
+            'antiSpamMaxPerMinute' => $antiSpamMaxPerMinute,
+            'antiSpamDelayMs' => $antiSpamDelayMs,
+            'antiSpamIntervalSeconds' => $antiSpamIntervalSeconds,
         ];
 
         $store->put($session, $config);
+
+        // Simpan anti-spam settings ke database
+        DeviceAntiSpamSetting::saveForSession($session, [
+            'enabled' => $antiSpamEnabled,
+            'max_messages_per_minute' => $antiSpamMaxPerMinute,
+            'delay_between_messages_ms' => $antiSpamDelayMs,
+            'same_recipient_interval_seconds' => $antiSpamIntervalSeconds,
+        ]);
 
         return redirect()
             ->route('devices.manage')
@@ -613,12 +640,12 @@ class GatewayController extends Controller
     public function startServer(): RedirectResponse
     {
         try {
-            $pid = $this->npm()->start();
+            $this->pm2()->start();
 
             return redirect()
                 ->route('dashboard')
                 ->with([
-                    'status' => "NPM server dijalankan (PID {$pid}).",
+                    'status'      => 'Server dijalankan via PM2.',
                     'autoRefresh' => 'server-start',
                 ]);
         } catch (Throwable $e) {
@@ -631,11 +658,29 @@ class GatewayController extends Controller
     public function stopServer(): RedirectResponse
     {
         try {
-            $this->npm()->stop();
+            $this->pm2()->stop();
 
             return redirect()
                 ->route('dashboard')
-                ->with('status', 'NPM server dihentikan.');
+                ->with('status', 'Server dihentikan via PM2.');
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('dashboard')
+                ->withErrors(['server' => $e->getMessage()]);
+        }
+    }
+
+    public function restartServer(): RedirectResponse
+    {
+        try {
+            $this->pm2()->restart();
+
+            return redirect()
+                ->route('dashboard')
+                ->with([
+                    'status'      => 'Server di-restart via PM2.',
+                    'autoRefresh' => 'server-start',
+                ]);
         } catch (Throwable $e) {
             return redirect()
                 ->route('dashboard')
@@ -849,11 +894,13 @@ class GatewayController extends Controller
         );
     }
 
-    private function npm(): NpmService
+    private function pm2(): Pm2Service
     {
-        [$command, $workingDir] = $this->resolveNodeServerCommand();
-
-        return new NpmService($command, $workingDir);
+        return new Pm2Service(
+            config('gateway.pm2.app_name'),
+            config('gateway.pm2.config_file'),
+            config('gateway.pm2.workdir'),
+        );
     }
 
     private function sessionConfigStore(): SessionConfigStore
@@ -984,55 +1031,4 @@ class GatewayController extends Controller
         file_put_contents($envPath, $content);
     }
 
-    /**
-     * Build command for the Node server and resolve the working directory even
-     * when the absolute path differs between environments.
-     */
-    private function resolveNodeServerCommand(): array
-    {
-        $workdirCandidates = array_filter([
-            config('gateway.npm.workdir'),
-            dirname(base_path()),
-            base_path(),
-        ]);
-
-        foreach ($workdirCandidates as $candidate) {
-            $resolvedDir = $this->absolutePath($candidate);
-            $loader = $resolvedDir . DIRECTORY_SEPARATOR . 'node_modules/tsx/dist/loader.mjs';
-            $entry = $resolvedDir . DIRECTORY_SEPARATOR . 'src/index.ts';
-
-            if (is_file($loader) && is_file($entry)) {
-                $defaultCommand = 'node --import ' . escapeshellarg($loader) . ' ' . escapeshellarg($entry);
-                $envCommand = $this->sanitizedEnvCommand();
-
-                return [$envCommand ?: $defaultCommand, $resolvedDir];
-            }
-        }
-
-        throw new RuntimeException('Tidak dapat menemukan direktori server Node. Pastikan src/index.ts dan node_modules/tsx/dist/loader.mjs tersedia.');
-    }
-
-    private function absolutePath(string $path): string
-    {
-        $absolute = str_starts_with($path, DIRECTORY_SEPARATOR) ? $path : base_path($path);
-
-        return realpath($absolute) ?: $absolute;
-    }
-
-    private function sanitizedEnvCommand(): ?string
-    {
-        $envCommand = config('gateway.npm.command');
-        $envCommand = is_string($envCommand) ? trim($envCommand) : '';
-
-        if ($envCommand === '') {
-            return null;
-        }
-
-        // Ignore legacy default so new node --import flow is used automatically.
-        if (stripos($envCommand, 'npm run dev') !== false) {
-            return null;
-        }
-
-        return $envCommand;
-    }
 }

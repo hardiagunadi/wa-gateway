@@ -9,6 +9,7 @@ import {
   listMessageStatuses,
   recordOutgoingMessage,
 } from "../status-store";
+import { applyAntiSpam } from "../anti-spam";
 
 export const createMessageController = () => {
   const sendMessageSchema = z.object({
@@ -85,6 +86,8 @@ export const createMessageController = () => {
             message: "Session does not exist",
           });
         }
+
+        await applyAntiSpam(payload.session, payload.to);
 
         await whatsapp.sendTypingIndicator({
           sessionId: payload.session,
@@ -175,6 +178,8 @@ export const createMessageController = () => {
           });
         }
 
+        await applyAntiSpam(payload.session, payload.to);
+
         await whatsapp.sendTypingIndicator({
           sessionId: payload.session,
           to: payload.to,
@@ -227,6 +232,8 @@ export const createMessageController = () => {
             message: "Session does not exist",
           });
         }
+
+        await applyAntiSpam(payload.session, payload.to);
 
         await whatsapp.sendTypingIndicator({
           sessionId: payload.session,
@@ -283,6 +290,8 @@ export const createMessageController = () => {
           });
         }
 
+        await applyAntiSpam(payload.session, payload.to);
+
         await whatsapp.sendTypingIndicator({
           sessionId: payload.session,
           to: payload.to,
@@ -334,6 +343,8 @@ export const createMessageController = () => {
             message: "Session does not exist",
           });
         }
+
+        await applyAntiSpam(payload.session, payload.to);
 
         const response = await whatsapp.sendSticker({
           sessionId: payload.session,

@@ -196,6 +196,7 @@
                         default => 'status-disconnected',
                     };
                 @endphp
+                @php $antiSpam = $antiSpamSettings[$session] ?? []; @endphp
                 <div class="col-sm-6 col-xl-4 mb-3">
                     <div class="device-card h-100 p-3"
                         data-device="{{ $session }}"
@@ -209,7 +210,11 @@
                         data-incoming="{{ ($cfg['incomingEnabled'] ?? true) ? '1' : '0' }}"
                         data-autoreply="{{ ($cfg['autoReplyEnabled'] ?? false) ? '1' : '0' }}"
                         data-tracking="{{ ($cfg['trackingEnabled'] ?? true) ? '1' : '0' }}"
-                        data-device-status="{{ ($cfg['deviceStatusEnabled'] ?? true) ? '1' : '0' }}">
+                        data-device-status="{{ ($cfg['deviceStatusEnabled'] ?? true) ? '1' : '0' }}"
+                        data-antispam-enabled="{{ ($antiSpam['enabled'] ?? false) ? '1' : '0' }}"
+                        data-antispam-max-per-minute="{{ $antiSpam['max_messages_per_minute'] ?? 20 }}"
+                        data-antispam-delay-ms="{{ $antiSpam['delay_between_messages_ms'] ?? 1000 }}"
+                        data-antispam-interval-seconds="{{ $antiSpam['same_recipient_interval_seconds'] ?? 0 }}">
                         <div class="d-flex align-items-start justify-content-between">
                             <div class="d-flex align-items-center">
                                 <div class="bg-dark text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width:48px;height:48px;">

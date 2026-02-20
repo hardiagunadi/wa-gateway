@@ -334,6 +334,10 @@
       const autoreply = card.getAttribute('data-autoreply') === '1';
       const tracking = card.getAttribute('data-tracking') === '1';
       const deviceStatus = card.getAttribute('data-device-status') === '1';
+      const antiSpamEnabled = card.getAttribute('data-antispam-enabled') === '1';
+      const antiSpamMaxPerMinute = card.getAttribute('data-antispam-max-per-minute') || '20';
+      const antiSpamDelayMs = card.getAttribute('data-antispam-delay-ms') || '1000';
+      const antiSpamIntervalSeconds = card.getAttribute('data-antispam-interval-seconds') || '0';
 
       settingsContent.innerHTML = `
         <form method="POST" action="${'{{ url('/sessions') }}'}/${encodeURIComponent(session)}/config" class="row g-3 needs-validation" novalidate>
@@ -374,6 +378,38 @@
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="device_status_enabled" value="1" id="device_status_enabled" ${deviceStatus ? 'checked' : ''}>
                     <label class="form-check-label" for="device_status_enabled">Get Device Status</label>
+                </div>
+            </div>
+            <div class="col-12">
+                <hr class="my-1">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div>
+                        <span class="fw-semibold small"><i class="fas fa-shield-alt me-1 text-warning"></i>Anti Spam</span>
+                        <p class="text-muted small mb-0">Batasi pengiriman pesan agar terhindar dari banned WhatsApp.</p>
+                    </div>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" name="anti_spam_enabled" value="1" id="anti_spam_enabled" ${antiSpamEnabled ? 'checked' : ''}>
+                        <label class="form-check-label fw-semibold" for="anti_spam_enabled">${antiSpamEnabled ? 'ON' : 'OFF'}</label>
+                    </div>
+                </div>
+                <div id="anti-spam-fields" class="${antiSpamEnabled ? '' : 'd-none'}">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small mb-1">Maks Pesan / Menit</label>
+                            <input type="number" class="form-control form-control-sm" name="anti_spam_max_per_minute" id="anti_spam_max_per_minute" value="${antiSpamMaxPerMinute}" min="1" max="1000" placeholder="20">
+                            <div class="text-muted" style="font-size:11px;">Default: 20 pesan/menit</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small mb-1">Jeda Antar Pesan (ms)</label>
+                            <input type="number" class="form-control form-control-sm" name="anti_spam_delay_ms" id="anti_spam_delay_ms" value="${antiSpamDelayMs}" min="0" max="60000" placeholder="1000">
+                            <div class="text-muted" style="font-size:11px;">Default: 1000 ms (1 detik)</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small mb-1">Interval Penerima Sama (detik)</label>
+                            <input type="number" class="form-control form-control-sm" name="anti_spam_interval_seconds" id="anti_spam_interval_seconds" value="${antiSpamIntervalSeconds}" min="0" max="86400" placeholder="0">
+                            <div class="text-muted" style="font-size:11px;">0 = nonaktif. Cegah duplikat ke nomor sama.</div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="col-12">
@@ -423,6 +459,15 @@
       const deviceStatusInput = settingsContent.querySelector('#device_status_webhook_base_url');
       if (trackingInput) trackingInput.value = trackingUrl;
       if (deviceStatusInput) deviceStatusInput.value = deviceStatusUrl;
+
+      const antiSpamToggle = settingsContent.querySelector('#anti_spam_enabled');
+      const antiSpamFields = settingsContent.querySelector('#anti-spam-fields');
+      const antiSpamLabel = antiSpamToggle?.parentElement?.querySelector('label');
+      antiSpamToggle?.addEventListener('change', () => {
+        const on = antiSpamToggle.checked;
+        if (antiSpamFields) antiSpamFields.classList.toggle('d-none', !on);
+        if (antiSpamLabel) antiSpamLabel.textContent = on ? 'ON' : 'OFF';
+      });
 
       const genBtn = settingsContent.querySelector('#btn-generate-apikey');
       genBtn?.addEventListener('click', () => {
@@ -638,41 +683,83 @@
                 <p class="text-muted small mb-0">Message Status Log</p>
                 <p class="fw-semibold mb-0">${session}</p>
             </div>
-            <button type="button" class="btn-refresh-log btn btn-outline-secondary btn-sm" data-session="${encodeURIComponent(session)}">Reload</button>
+            <div class="d-flex gap-2 align-items-center">
+                <div class="form-check form-switch mb-0 me-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="log-auto-refresh">
+                    <label class="form-check-label text-muted small" for="log-auto-refresh">Auto</label>
+                </div>
+                <button type="button" class="btn-refresh-log btn btn-outline-secondary btn-sm">Reload</button>
+            </div>
         </div>
         <div class="row g-2 align-items-end mb-2">
-            <div class="col-md-6">
+            <div class="col-md-5">
                 <label class="form-label text-muted small mb-1">Filter nomor/pengirim/tujuan</label>
-                <input type="text" class="form-control form-control-sm log-filter-phone" placeholder="628xx / id">
+                <input type="text" class="form-control form-control-sm log-filter-phone" placeholder="628xx / nomor">
             </div>
             <div class="col-md-4">
                 <label class="form-label text-muted small mb-1">Status</label>
                 <select class="form-select form-select-sm log-filter-status">
                     <option value="">Semua status</option>
-                    <option value="pending">pending</option>
-                    <option value="sent">sent</option>
-                    <option value="delivered">delivered</option>
-                    <option value="read">read</option>
-                    <option value="received">received</option>
-                    <option value="failed">failed</option>
+                    <option value="pending">Pending</option>
+                    <option value="sent">Terkirim (Sent)</option>
+                    <option value="delivered">Diterima (Delivered)</option>
+                    <option value="read">Dibaca (Read)</option>
+                    <option value="played">Diputar (Played)</option>
+                    <option value="received">Masuk (Received)</option>
+                    <option value="failed">Gagal (Failed)</option>
+                    <option value="error">Error</option>
                 </select>
             </div>
-            <div class="col-md-2 d-grid d-md-block">
-                <button type="button" class="btn btn-primary btn-sm btn-apply-log-filter">Filter</button>
+            <div class="col-md-3 d-flex gap-1">
+                <button type="button" class="btn btn-primary btn-sm btn-apply-log-filter flex-grow-1">Filter</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm btn-clear-log-filter">Reset</button>
             </div>
         </div>
         <div class="log-result mt-2 text-sm text-muted">Loading...</div>
       `;
 
-      const logResult = messageLogContent.querySelector('.log-result');
+      // Helper: strip JID domain suffix (@s.whatsapp.net, @g.us, dll)
+      const cleanJid = (jid) => {
+          if (!jid) return '-';
+          return String(jid).replace(/@[^@]+$/, '').trim() || jid;
+      };
+
+      // Helper: escape HTML
       const escapeHtml = (value) => String(value ?? '')
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#39;');
-      const loadLog = async () => {
-          if (logResult) {
+
+      // Helper: status → label + badge color
+      const statusMeta = (raw) => {
+          const s = (raw || '').toString().toLowerCase().trim();
+          switch (s) {
+              case 'pending':
+                  return { label: 'Pending',    cls: 'bg-warning-subtle text-warning border-warning' };
+              case 'sent':
+                  return { label: 'Terkirim',   cls: 'bg-primary-subtle text-primary border-primary' };
+              case 'delivered':
+                  return { label: 'Diterima',   cls: 'bg-success-subtle text-success border-success' };
+              case 'read':
+                  return { label: 'Dibaca',     cls: 'bg-success-subtle text-success border-success fw-bold' };
+              case 'played':
+                  return { label: 'Diputar',    cls: 'bg-info-subtle text-info border-info' };
+              case 'received':
+                  return { label: 'Masuk',      cls: 'bg-info-subtle text-info border-info' };
+              case 'failed':
+              case 'error':
+                  return { label: 'Gagal',      cls: 'bg-danger-subtle text-danger border-danger' };
+              default:
+                  return { label: s || '-',     cls: 'bg-secondary-subtle text-secondary border-secondary' };
+          }
+      };
+
+      const logResult = messageLogContent.querySelector('.log-result');
+
+      const loadLog = async (silent = false) => {
+          if (!silent && logResult) {
               logResult.textContent = 'Loading...';
               logResult.className = 'log-result mt-2 text-sm text-secondary';
           }
@@ -682,79 +769,93 @@
               const data = await res.json().catch(() => ({}));
               if (!data.ok) throw new Error(data.message || 'Failed');
               const items = Array.isArray(data.data) ? data.data : [];
+
               const phoneFilter = (messageLogContent.querySelector('.log-filter-phone')?.value || '').trim().toLowerCase();
               const statusFilter = (messageLogContent.querySelector('.log-filter-status')?.value || '').trim().toLowerCase();
+
               const filtered = items.filter((item) => {
                   const direction = (item.direction || '').toString().toLowerCase();
-                  const peer = (direction === 'incoming'
-                      ? (item.from || item.to)
-                      : (item.to || item.from) || ''
-                  ).toString().toLowerCase();
+                  const peerRaw = direction === 'incoming'
+                      ? (item.from || item.to || '')
+                      : (item.to || item.from || '');
+                  const peerClean = cleanJid(peerRaw).toLowerCase();
                   const st = (item.status || '').toString().toLowerCase();
-                  const matchPhone = !phoneFilter || peer.includes(phoneFilter);
+                  const matchPhone = !phoneFilter || peerClean.includes(phoneFilter) || peerRaw.toLowerCase().includes(phoneFilter);
                   const matchStatus = !statusFilter || st === statusFilter;
                   return matchPhone && matchStatus;
               });
+
               if (!logResult) return;
               if (filtered.length === 0) {
-                  logResult.textContent = 'Belum ada log status.';
+                  logResult.textContent = items.length === 0 ? 'Belum ada log status.' : 'Tidak ada hasil yang cocok dengan filter.';
                   logResult.className = 'log-result mt-2 text-sm text-warning';
                   return;
               }
-              logResult.className = 'log-result mt-2 text-sm text-muted overflow-x-auto';
+
+              logResult.className = 'log-result mt-2 text-sm text-muted overflow-auto';
               logResult.innerHTML = `
-                  <table class="min-w-full text-xs border border-slate-100 rounded-lg overflow-hidden">
-                      <thead class="bg-light text-muted">
+                  <div class="text-muted small mb-1">${filtered.length} pesan${items.length !== filtered.length ? ' (dari ' + items.length + ')' : ''}, terbaru di atas.</div>
+                  <table class="table table-sm table-hover table-bordered small mb-0 align-middle" style="min-width:600px;">
+                      <thead class="table-light">
                           <tr>
-                              <th class="px-2 py-2 text-start">Message ID</th>
-                              <th class="px-2 py-2 text-start">Arah</th>
-                              <th class="px-2 py-2 text-start">Kontak</th>
-                              <th class="px-2 py-2 text-start">Isi</th>
-                              <th class="px-2 py-2 text-start">Status</th>
-                              <th class="px-2 py-2 text-start">Updated</th>
+                              <th style="width:30px;">#</th>
+                              <th>Arah</th>
+                              <th>Kontak</th>
+                              <th>Isi Pesan</th>
+                              <th>Status Terakhir</th>
+                              <th>Diperbarui</th>
                           </tr>
                       </thead>
                       <tbody>
-                          ${filtered.map((item) => {
-                              const status = (item.status || '').toString();
+                          ${filtered.map((item, idx) => {
                               const direction = (item.direction || '').toString().toLowerCase();
-                              const directionLabel = direction === 'incoming'
-                                  ? 'Masuk'
-                                  : direction === 'outgoing'
-                                  ? 'Keluar'
-                                  : '-';
-                              const ts = item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '-';
-                              const id = (item.id || '').toString();
                               const peerRaw = direction === 'incoming'
                                   ? (item.from || item.to || '-')
                                   : (item.to || item.from || '-');
-                              const peer = escapeHtml(peerRaw);
+                              const peerClean = escapeHtml(cleanJid(peerRaw));
+                              const peerFull = escapeHtml(peerRaw);
+
+                              const meta = statusMeta(item.status);
+                              const category = (item.category || '').toString().toLowerCase();
+
+                              const categoryIcon = {
+                                  text: '💬', image: '🖼️', video: '🎥', document: '📄',
+                                  audio: '🎵', sticker: '🎭', contact: '👤', location: '📍'
+                              }[category] || '✉️';
+
                               const previewRaw = escapeHtml(item.preview || '');
-                              const preview = previewRaw || '<span class="text-muted">-</span>';
-                              const badgeClass = status === 'delivered' || status === 'read' || status === 'sent'
-                                  ? 'bg-success-subtle text-success border-success'
-                                  : status === 'pending'
-                                  ? 'bg-warning-subtle text-warning border-warning'
-                                  : status === 'received'
-                                  ? 'bg-info-subtle text-info border-info'
-                                  : 'bg-danger-subtle text-danger border-danger';
-                              const directionBadgeClass = direction === 'incoming'
-                                  ? 'bg-info-subtle text-info border-info'
+                              const preview = previewRaw
+                                  ? `${categoryIcon} ${previewRaw.length > 60 ? previewRaw.slice(0, 60) + '…' : previewRaw}`
+                                  : `${categoryIcon} <span class="text-muted fst-italic">${category || '-'}</span>`;
+
+                              const dirIcon = direction === 'incoming'
+                                  ? '<span class="badge bg-info-subtle text-info border border-info-subtle">↓ Masuk</span>'
                                   : direction === 'outgoing'
-                                  ? 'bg-primary-subtle text-primary border-primary'
-                                  : 'bg-secondary-subtle text-secondary border-secondary';
+                                  ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle">↑ Keluar</span>'
+                                  : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">—</span>';
+
+                              const ts = item.updatedAt
+                                  ? new Date(item.updatedAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'medium' })
+                                  : '-';
+
+                              const createdTs = item.createdAt
+                                  ? new Date(item.createdAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'medium' })
+                                  : null;
+
+                              const tsHint = createdTs && createdTs !== ts
+                                  ? ` title="Dibuat: ${createdTs}"`
+                                  : '';
+
                               return `
-                                  <tr class="border-top border-slate-100">
-                                      <td class="px-2 py-2 font-monospace text-break">${id}</td>
-                                      <td class="px-2 py-2">
-                                          <span class="text-[11px] px-2 py-0.5 rounded-pill border ${directionBadgeClass}">${directionLabel}</span>
+                                  <tr>
+                                      <td class="text-muted text-center">${idx + 1}</td>
+                                      <td class="text-nowrap">${dirIcon}</td>
+                                      <td class="font-monospace text-break" title="${peerFull}">${peerClean}</td>
+                                      <td class="text-break" style="max-width:200px;">${preview}</td>
+                                      <td class="text-nowrap">
+                                          <span class="badge border ${meta.cls}" style="font-size:11px;">${meta.label}</span>
                                       </td>
-                                      <td class="px-2 py-2 font-monospace text-break">${peer}</td>
-                                      <td class="px-2 py-2 text-break">${preview}</td>
-                                      <td class="px-2 py-2">
-                                          <span class="text-[11px] px-2 py-0.5 rounded-pill border ${badgeClass}">${status || '-'}</span>
-                                      </td>
-                                      <td class="px-2 py-2 text-muted">${ts}</td>
+                                      <td class="text-muted text-nowrap"${tsHint}>${ts}</td>
                                   </tr>
                               `;
                           }).join('')}
@@ -768,8 +869,32 @@
           }
       };
 
-      messageLogContent.querySelector('.btn-refresh-log')?.addEventListener('click', loadLog);
-      messageLogContent.querySelector('.btn-apply-log-filter')?.addEventListener('click', loadLog);
+      // Auto-refresh
+      let autoRefreshTimer = null;
+      const autoToggle = messageLogContent.querySelector('#log-auto-refresh');
+      autoToggle?.addEventListener('change', () => {
+          if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+          if (autoToggle.checked) {
+              autoRefreshTimer = setInterval(() => loadLog(true), 3000);
+          }
+      });
+
+      // Stop auto-refresh when modal closes
+      modalMessageLogEl?.addEventListener('hidden.bs.modal', () => {
+          if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+          if (autoToggle) autoToggle.checked = false;
+      }, { once: true });
+
+      messageLogContent.querySelector('.btn-refresh-log')?.addEventListener('click', () => loadLog());
+      messageLogContent.querySelector('.btn-apply-log-filter')?.addEventListener('click', () => loadLog());
+      messageLogContent.querySelector('.btn-clear-log-filter')?.addEventListener('click', () => {
+          const p = messageLogContent.querySelector('.log-filter-phone');
+          const s = messageLogContent.querySelector('.log-filter-status');
+          if (p) p.value = '';
+          if (s) s.value = '';
+          loadLog();
+      });
+
       loadLog();
       show(modalMessageLog);
     });

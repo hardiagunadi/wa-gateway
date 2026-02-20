@@ -17,6 +17,14 @@ export type SessionWebhookConfig = {
    * When set, wa-gateway will POST a lintasku-style payload in addition to the normal payload.
    */
   lintaskuCompatWebhookUrl?: string;
+  /** Anti-spam: aktifkan pembatasan rate pesan */
+  antiSpamEnabled?: boolean;
+  /** Anti-spam: maks pesan yang boleh dikirim per menit (default: 20) */
+  antiSpamMaxPerMinute?: number;
+  /** Anti-spam: jeda minimum antar pesan dalam milidetik (default: 1000) */
+  antiSpamDelayMs?: number;
+  /** Anti-spam: interval dalam detik sebelum pesan ke penerima yang sama diizinkan lagi (0 = nonaktif) */
+  antiSpamIntervalSeconds?: number;
 };
 
 export const sessionConfigPath = path.join(
@@ -48,6 +56,10 @@ const normalizeConfig = (cfg: any): SessionWebhookConfig => ({
   trackingEnabled: cfg?.trackingEnabled ?? true,
   deviceStatusEnabled: cfg?.deviceStatusEnabled ?? true,
   lintaskuCompatWebhookUrl: cfg?.lintaskuCompatWebhookUrl,
+  antiSpamEnabled: cfg?.antiSpamEnabled ?? false,
+  antiSpamMaxPerMinute: typeof cfg?.antiSpamMaxPerMinute === "number" ? Math.max(1, cfg.antiSpamMaxPerMinute) : 20,
+  antiSpamDelayMs: typeof cfg?.antiSpamDelayMs === "number" ? Math.max(0, cfg.antiSpamDelayMs) : 1000,
+  antiSpamIntervalSeconds: typeof cfg?.antiSpamIntervalSeconds === "number" ? Math.max(0, cfg.antiSpamIntervalSeconds) : 0,
 });
 
 export const getSessionWebhookConfig = async (

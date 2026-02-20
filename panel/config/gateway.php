@@ -13,6 +13,12 @@ return [
         'workdir' => env('NPM_SERVER_WORKDIR', dirname(base_path())),
     ],
 
+    'pm2' => [
+        'app_name'    => env('PM2_APP_NAME', 'wa-gateway'),
+        'config_file' => env('PM2_CONFIG_FILE', dirname(base_path()) . DIRECTORY_SEPARATOR . 'ecosystem.config.js'),
+        'workdir'     => env('PM2_WORKDIR', dirname(base_path())),
+    ],
+
     // Comma-separated session IDs allowed to send password reset messages.
     'password_reset_sessions' => array_filter(array_map('trim', explode(',', env('PASSWORD_RESET_SESSIONS', '')))),
 ];

@@ -13,6 +13,43 @@ export type MessageStatusRecord = {
   update?: unknown;
 };
 
+/**
+ * Normalisasi status pesan dari berbagai format WhatsApp/Baileys ke string standar.
+ * - Numeric proto value: 0=error, 1=pending, 2=sent, 3=delivered, 4=read, 5=played
+ * - Uppercase Baileys: SERVER_ACK, DELIVERY_ACK, READ, PLAYED, ERROR, PENDING
+ * - Lowercase friendly: pending, sent, delivered, read, played, error, received, failed
+ */
+export const normalizeMessageStatus = (raw: unknown): string => {
+  if (raw === undefined || raw === null || raw === "") return "pending";
+
+  const num = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+  if (!isNaN(num) && String(raw).trim() !== "") {
+    switch (num) {
+      case 0: return "error";
+      case 1: return "pending";
+      case 2: return "sent";
+      case 3: return "delivered";
+      case 4: return "read";
+      case 5: return "played";
+    }
+  }
+
+  const lower = String(raw).toLowerCase().trim();
+  switch (lower) {
+    case "server_ack":     return "sent";
+    case "delivery_ack":   return "delivered";
+    case "read":           return "read";
+    case "played":         return "played";
+    case "error":
+    case "failed":         return "failed";
+    case "pending":        return "pending";
+    case "sent":           return "sent";
+    case "delivered":      return "delivered";
+    case "received":       return "received";
+    default:               return lower || "pending";
+  }
+};
+
 const statusStore = new Map<string, MessageStatusRecord>();
 
 const makeKey = (session: string, id: string) => `${session}:${id}`;
@@ -27,7 +64,9 @@ export const upsertMessageStatus = (
   const merged: MessageStatusRecord = {
     session: record.session,
     id: record.id,
-    status: record.status || existing?.status || "pending",
+    status: record.status
+      ? normalizeMessageStatus(record.status)
+      : (existing?.status || "pending"),
     updatedAt: timestamp,
     createdAt:
       existing?.createdAt || record.createdAt || record.updatedAt || timestamp,

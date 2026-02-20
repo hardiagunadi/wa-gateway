@@ -37,6 +37,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/devices/status', [GatewayController::class, 'deviceStatus'])->name('devices.status');
     Route::post('/server/start', [GatewayController::class, 'startServer'])->name('server.start');
     Route::post('/server/stop', [GatewayController::class, 'stopServer'])->name('server.stop');
+    Route::post('/server/restart', [GatewayController::class, 'restartServer'])->name('server.restart');
 
     Route::get('/users', [UserManagementController::class, 'index'])->name('users.index');
     Route::post('/users', [UserManagementController::class, 'store'])->name('users.store');

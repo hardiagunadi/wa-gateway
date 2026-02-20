@@ -146,39 +146,62 @@
                         <div class="col-lg-6 mb-3">
                             <div class="card shadow-sm h-100">
                                 <div class="card-body d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <p class="text-muted text-sm mb-1"><i class="fas fa-server me-1 text-primary"></i>NPM Server</p>
-                        @if($npmStatus['running'])
-                            @if(isset($npmStatus['source']) && $npmStatus['source'] === 'inferred')
-                                <p class="text-success font-weight-bold mb-1">Running (external)</p>
-                            @elseif($npmStatus['pid'])
-                                <p class="text-success font-weight-bold mb-1">Running (PID {{ $npmStatus['pid'] }})</p>
-                            @else
-                                <p class="text-success font-weight-bold mb-1">Running</p>
-                            @endif
+                                    <div class="flex-grow-1 me-3">
+                                        <p class="text-muted text-sm mb-1"><i class="fas fa-server me-1 text-primary"></i>WA Gateway Server <span class="badge bg-secondary" style="font-size:10px">PM2</span></p>
+                        @php
+                            $pm2State = $serverStatus['pm2Status'] ?? 'not registered';
+                            $isOnline = $serverStatus['running'] ?? false;
+                        @endphp
+                        @if($isOnline)
+                            <p class="text-success font-weight-bold mb-1">
+                                <i class="fas fa-circle text-success" style="font-size:9px"></i>
+                                Online
+                                @if($serverStatus['pid']) <span class="text-muted fw-normal">(PID {{ $serverStatus['pid'] }})</span>@endif
+                            </p>
                         @else
-                            <p class="text-danger font-weight-bold mb-1">Stopped</p>
+                            <p class="text-danger font-weight-bold mb-1">
+                                <i class="fas fa-circle text-danger" style="font-size:9px"></i>
+                                {{ ucfirst($pm2State) }}
+                            </p>
                         @endif
-                                        <p class="text-muted small mb-0"><strong>Cmd:</strong> {{ $npmStatus['command'] }}</p>
-                                        <p class="text-muted small mb-0"><strong>Dir:</strong> {{ $npmStatus['workingDir'] }}</p>
+                                        <div class="d-flex flex-wrap gap-2 mt-1">
+                        @if($serverStatus['uptime'] ?? null)
+                            <span class="badge bg-light text-secondary border" title="Uptime"><i class="fas fa-clock me-1"></i>{{ $serverStatus['uptime'] }}</span>
+                        @endif
+                        @if($serverStatus['restarts'] ?? 0)
+                            <span class="badge bg-light text-secondary border" title="Restart count"><i class="fas fa-redo me-1"></i>{{ $serverStatus['restarts'] }}x restart</span>
+                        @endif
+                        @if($serverStatus['memory'] ?? null)
+                            <span class="badge bg-light text-secondary border" title="Memory"><i class="fas fa-memory me-1"></i>{{ $serverStatus['memory'] }}</span>
+                        @endif
+                        @if($serverStatus['cpu'] ?? null)
+                            <span class="badge bg-light text-secondary border" title="CPU"><i class="fas fa-microchip me-1"></i>{{ $serverStatus['cpu'] }}</span>
+                        @endif
+                                        </div>
                                     </div>
-                                    <div class="btn-group">
+                                    <div class="d-flex flex-column gap-1">
                                         <form method="POST" action="{{ route('server.start') }}">
                                             @csrf
-                                            <button class="btn btn-success btn-sm" {{ $npmStatus['running'] ? 'disabled' : '' }}>
+                                            <button class="btn btn-success btn-sm w-100" {{ $isOnline ? 'disabled' : '' }}>
                                                 <i class="fas fa-play me-1"></i>Start
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ route('server.restart') }}">
+                                            @csrf
+                                            <button class="btn btn-warning btn-sm w-100" {{ !$isOnline ? 'disabled' : '' }}>
+                                                <i class="fas fa-redo me-1"></i>Restart
                                             </button>
                                         </form>
                                         <form method="POST" action="{{ route('server.stop') }}">
                                             @csrf
-                                            <button class="btn btn-danger btn-sm" {{ $npmStatus['running'] ? '' : 'disabled' }}>
+                                            <button class="btn btn-danger btn-sm w-100" {{ !$isOnline ? 'disabled' : '' }}>
                                                 <i class="fas fa-stop me-1"></i>Stop
                                             </button>
                                         </form>
                                     </div>
                                 </div>
                                 <div class="card-footer text-muted small">
-                                    <i class="fas fa-file-alt me-1"></i>Log: {{ $npmStatus['logFile'] }}
+                                    <i class="fas fa-file-alt me-1"></i>Log: {{ $serverStatus['logFile'] }}
                                 </div>
                             </div>
                         </div>
@@ -192,7 +215,7 @@
                                             <p class="text-muted text-sm mb-0"><i class="fas fa-exclamation-triangle me-1 text-danger"></i>Log Error Terakhir</p>
                                             <h5 class="mb-0">Server Log</h5>
                                         </div>
-                                        <span class="badge bg-light text-muted">{{ $npmStatus['logFile'] }}</span>
+                                        <span class="badge bg-light text-muted">{{ $serverStatus['logFile'] }}</span>
                                     </div>
                                     @if($logTail)
                                         <pre class="bg-dark text-light p-3 rounded small mb-0" style="max-height: min(40vh, 320px); overflow:auto; white-space:pre-wrap;">{{ $logTail }}</pre>
