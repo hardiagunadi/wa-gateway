@@ -90,14 +90,12 @@ class DeviceConfig extends Page implements HasForms
                             ->label('Header Key')
                             ->dehydrated(false)
                             ->readOnly()
-                            ->copyable()
-                            ->copyMessage('Header Key disalin!'),
+                            ->copyable(copyMessage: 'Header Key disalin!'),
                         TextInput::make('api_key')
                             ->label('API Key')
                             ->password()
                             ->revealable()
-                            ->copyable()
-                            ->copyMessage('API Key disalin!')
+                            ->copyable(copyMessage: 'API Key disalin!')
                             ->suffixAction(
                                 \Filament\Actions\Action::make('generateApiKey')
                                     ->icon('heroicon-o-arrow-path')
@@ -116,26 +114,32 @@ class DeviceConfig extends Page implements HasForms
 
                 Section::make('Webhook')
                     ->schema([
+                        Toggle::make('incoming_enabled')
+                            ->label('Aktifkan Webhook Pesan Masuk')
+                            ->live(),
                         TextInput::make('webhook_base_url')
                             ->label('Webhook Pesan Masuk')
                             ->url()
-                            ->placeholder('https://example.com/webhook'),
-                        Toggle::make('incoming_enabled')
-                            ->label('Aktifkan Webhook Pesan Masuk'),
+                            ->placeholder('https://example.com/webhook')
+                            ->visible(fn (\Filament\Schemas\Components\Utilities\Get $get) => $get('incoming_enabled')),
                         Toggle::make('auto_reply_enabled')
                             ->label('Aktifkan Auto Reply'),
+                        Toggle::make('tracking_enabled')
+                            ->label('Aktifkan Tracking')
+                            ->live(),
                         TextInput::make('tracking_webhook_base_url')
                             ->label('Webhook Tracking')
                             ->url()
-                            ->placeholder('https://example.com/tracking'),
-                        Toggle::make('tracking_enabled')
-                            ->label('Aktifkan Tracking'),
+                            ->placeholder('https://example.com/tracking')
+                            ->visible(fn (\Filament\Schemas\Components\Utilities\Get $get) => $get('tracking_enabled')),
+                        Toggle::make('device_status_enabled')
+                            ->label('Aktifkan Webhook Status Device')
+                            ->live(),
                         TextInput::make('device_status_webhook_base_url')
                             ->label('Webhook Status Device')
                             ->url()
-                            ->placeholder('https://example.com/device-status'),
-                        Toggle::make('device_status_enabled')
-                            ->label('Aktifkan Webhook Status Device'),
+                            ->placeholder('https://example.com/device-status')
+                            ->visible(fn (\Filament\Schemas\Components\Utilities\Get $get) => $get('device_status_enabled')),
                     ]),
 
                 Section::make('Anti-Spam')

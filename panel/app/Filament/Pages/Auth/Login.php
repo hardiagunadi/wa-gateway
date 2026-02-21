@@ -6,6 +6,7 @@ use App\Models\User;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse;
 use Filament\Auth\Pages\Login as BaseLogin;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Hash;
@@ -49,6 +50,17 @@ class Login extends BaseLogin
 
         auth()->login($user, $data['remember'] ?? false);
         session()->regenerate();
+
+        // Kirim notifikasi login ke semua admin
+        $admins = User::where('role', 'admin')->where('id', '!=', $user->id)->get();
+        if ($admins->isNotEmpty()) {
+            Notification::make()
+                ->title('Login Berhasil')
+                ->body("{$user->name} berhasil login pada " . now()->format('d M Y H:i') . '.')
+                ->icon('heroicon-o-arrow-left-on-rectangle')
+                ->color('info')
+                ->sendToDatabase($admins);
+        }
 
         return app(LoginResponse::class);
     }

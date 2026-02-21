@@ -29,6 +29,35 @@ class ManageDevices extends Page implements HasTable, HasForms
     protected static ?int $navigationSort = 1;
     protected string $view = 'filament.pages.manage-devices';
 
+    public static function getNavigationBadge(): ?string
+    {
+        try {
+            $gateway = new GatewayService(config('gateway.base_url'), config('gateway.api_key'));
+            $sessions = $gateway->listSessions();
+            $user = auth()->user();
+
+            if (! $user?->isAdmin()) {
+                $owned = DeviceOwnership::where('user_id', $user?->id)->pluck('session_id')->all();
+                $sessions = array_intersect($sessions, $owned);
+            }
+
+            $count = count($sessions);
+            return $count > 0 ? (string) $count : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public static function getNavigationBadgeColor(): string|array|null
+    {
+        return 'primary';
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Jumlah perangkat';
+    }
+
     // Wizard state
     public int $wizardStep = 1;        // 1=form, 2=pairing
     public string $createMode = 'qr';  // 'qr' atau 'code'
@@ -158,6 +187,14 @@ class ManageDevices extends Page implements HasTable, HasForms
         // Simpan config nama perangkat
         $this->sessionConfigStore()->put($phone, ['deviceName' => $name]);
 
+        $this->notifyDb(
+            'Perangkat Baru Ditambahkan',
+            "Perangkat {$name} ({$phone}) sedang dikonfigurasi oleh " . auth()->user()->name . '.',
+            'heroicon-o-device-phone-mobile',
+            'info',
+            $phone,
+        );
+
         // Cleanup session lama jika ada
         $this->cleanupSession($phone);
 
@@ -180,6 +217,13 @@ class ManageDevices extends Page implements HasTable, HasForms
     {
         if ($this->checkDeviceConnected()) {
             Notification::make()->success()->title('Perangkat berhasil terhubung!')->send();
+            $this->notifyDb(
+                'Perangkat Terhubung',
+                "Perangkat {$this->createName} ({$this->activeSessionId}) berhasil terhubung via QR Code.",
+                'heroicon-o-check-circle',
+                'success',
+                $this->activeSessionId,
+            );
             $this->closeCreateModal();
         }
     }
@@ -233,6 +277,13 @@ class ManageDevices extends Page implements HasTable, HasForms
     {
         if ($this->checkDeviceConnected()) {
             Notification::make()->success()->title('Perangkat berhasil terhubung!')->send();
+            $this->notifyDb(
+                'Perangkat Terhubung',
+                "Perangkat {$this->createName} ({$this->activeSessionId}) berhasil terhubung via Pairing Code.",
+                'heroicon-o-check-circle',
+                'success',
+                $this->activeSessionId,
+            );
             $this->closeCreateModal();
         }
     }
@@ -384,6 +435,15 @@ class ManageDevices extends Page implements HasTable, HasForms
         try { $this->gateway()->logoutSession($sessionId); } catch (\Throwable) {}
         try { $this->gateway()->deleteSession($sessionId); } catch (\Throwable) {}
 
+        // Notifikasi sebelum hapus ownership (agar pemilik masih terdeteksi)
+        $this->notifyDb(
+            'Perangkat Dihapus',
+            "Perangkat {$sessionId} telah dihapus oleh " . auth()->user()->name . '.',
+            'heroicon-o-trash',
+            'danger',
+            $sessionId,
+        );
+
         // Selalu bersihkan data lokal meski API gagal
         $this->sessionConfigStore()->delete($sessionId);
         DeviceOwnership::where('session_id', $sessionId)->delete();
@@ -421,5 +481,34 @@ class ManageDevices extends Page implements HasTable, HasForms
     private function sessionConfigStore(): SessionConfigStore
     {
         return new SessionConfigStore(config('gateway.session_config_path'));
+    }
+
+    private function notifyDb(string $title, string $body = '', string $icon = 'heroicon-o-bell', string $color = 'info', ?string $sessionId = null): void
+    {
+        $recipients = collect();
+
+        // Admin selalu dapat semua notifikasi
+        $admins = User::where('role', 'admin')->get();
+        $recipients = $recipients->merge($admins);
+
+        // Pemilik perangkat juga dapat notifikasi terkait perangkatnya
+        if ($sessionId) {
+            $ownerIds = DeviceOwnership::where('session_id', $sessionId)->pluck('user_id');
+            $owners = User::whereIn('id', $ownerIds)->get();
+            $recipients = $recipients->merge($owners);
+        }
+
+        $recipients = $recipients->unique('id');
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        Notification::make()
+            ->title($title)
+            ->body($body)
+            ->icon($icon)
+            ->color($color)
+            ->sendToDatabase($recipients);
     }
 }
