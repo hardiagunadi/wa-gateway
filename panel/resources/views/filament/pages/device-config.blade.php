@@ -7,6 +7,7 @@
                 Simpan Konfigurasi
             </x-filament::button>
 
+            @if($this->configData['incoming_enabled'] ?? false)
             <x-filament::button
                 color="gray"
                 wire:click="testWebhook('incoming')"
@@ -15,7 +16,9 @@
             >
                 Test Webhook Pesan
             </x-filament::button>
+            @endif
 
+            @if($this->configData['tracking_enabled'] ?? false)
             <x-filament::button
                 color="gray"
                 wire:click="testWebhook('tracking')"
@@ -24,7 +27,9 @@
             >
                 Test Webhook Tracking
             </x-filament::button>
+            @endif
 
+            @if($this->configData['device_status_enabled'] ?? false)
             <x-filament::button
                 color="gray"
                 wire:click="testWebhook('device_status')"
@@ -33,6 +38,7 @@
             >
                 Test Webhook Status
             </x-filament::button>
+            @endif
         </div>
     </form>
 
