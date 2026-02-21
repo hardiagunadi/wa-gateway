@@ -84,10 +84,10 @@ class DeviceMessagesTable extends Component implements HasTable, HasForms, HasAc
                     ->color('gray'),
             ])
             ->emptyStateHeading('Tidak ada data')
-            ->emptyStateDescription('Tidak ada data status pesan.')
+            ->emptyStateDescription('Tidak ada data status pesan. Data hanya tersedia sejak server gateway terakhir restart (in-memory storage).')
             ->emptyStateIcon('heroicon-o-chat-bubble-left-right')
             ->striped()
-            ->paginated([10, 25, 50]);
+            ->paginated([10, 25, 50, 'all']);
     }
 
     protected function loadMessages(): array
