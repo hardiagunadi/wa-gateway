@@ -152,7 +152,7 @@ install_pm2() {
   fi
 
   log "Instal PM2 secara global"
-  as_root npm install -g pm2
+  sudo env "PATH=$PATH" npm install -g pm2
 }
 
 install_gateway_deps() {
