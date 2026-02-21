@@ -82,7 +82,7 @@ class GatewayService
 
     public function logoutSession(string $session): void
     {
-        $response = $this->client()->post('/session/logout', [
+        $response = $this->client()->timeout(10)->post('/session/logout', [
             'session' => $session,
         ]);
         $response->throw();
@@ -90,7 +90,7 @@ class GatewayService
 
     public function deleteSession(string $session): void
     {
-        $response = $this->client()->post('/session/delete', [
+        $response = $this->client()->timeout(10)->post('/session/delete', [
             'session' => $session,
         ]);
         $response->throw();

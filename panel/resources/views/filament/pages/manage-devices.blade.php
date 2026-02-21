@@ -134,11 +134,8 @@
         >
             {{-- QR Image --}}
             @if($qrImage)
-                <div style="position:relative;padding:12px;border:2px solid #e5e7eb;border-radius:12px;background:#fff;">
+                <div style="padding:12px;border:2px solid #e5e7eb;border-radius:12px;background:#fff;">
                     <img src="{{ $qrImage }}" alt="QR Code" style="max-height:250px;max-width:250px;border-radius:8px;display:block;" />
-                    <div wire:loading wire:target="refreshQr" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.85);border-radius:12px;">
-                        <svg style="width:32px;height:32px;animation:spin 1s linear infinite;color:#4f46e5;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle style="opacity:.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path style="opacity:.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                    </div>
                 </div>
             @else
                 <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:250px;width:250px;border:2px dashed #e5e7eb;border-radius:12px;background:#f9fafb;">

@@ -380,15 +380,15 @@ class ManageDevices extends Page implements HasTable, HasForms
             return;
         }
 
-        try {
-            $this->gateway()->deleteSession($sessionId);
-            $this->sessionConfigStore()->delete($sessionId);
-            DeviceOwnership::where('session_id', $sessionId)->delete();
+        // Logout dulu agar session bersih, lalu hapus — abaikan error API
+        try { $this->gateway()->logoutSession($sessionId); } catch (\Throwable) {}
+        try { $this->gateway()->deleteSession($sessionId); } catch (\Throwable) {}
 
-            Notification::make()->success()->title("Device {$sessionId} dihapus.")->send();
-        } catch (\Throwable $e) {
-            Notification::make()->danger()->title('Gagal: ' . $e->getMessage())->send();
-        }
+        // Selalu bersihkan data lokal meski API gagal
+        $this->sessionConfigStore()->delete($sessionId);
+        DeviceOwnership::where('session_id', $sessionId)->delete();
+
+        Notification::make()->success()->title("Device {$sessionId} dihapus.")->send();
     }
 
     protected function transferOwnership(string $sessionId, int $userId): void
