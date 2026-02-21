@@ -16,6 +16,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class DeviceConfig extends Page implements HasForms
 {
@@ -48,6 +49,7 @@ class DeviceConfig extends Page implements HasForms
 
         $this->configForm->fill([
             'device_name' => $config['deviceName'] ?? '',
+            'header_key' => config('gateway.api_key') ?: '(belum diset)',
             'webhook_base_url' => $config['webhookBaseUrl'] ?? '',
             'tracking_webhook_base_url' => $config['trackingWebhookBaseUrl'] ?? '',
             'device_status_webhook_base_url' => $config['deviceStatusWebhookBaseUrl'] ?? '',
@@ -82,11 +84,33 @@ class DeviceConfig extends Page implements HasForms
                 Section::make('Informasi Perangkat')
                     ->schema([
                         TextInput::make('device_name')
-                            ->label('Nama Perangkat'),
+                            ->label('Nama Perangkat')
+                            ->columnSpanFull(),
+                        TextInput::make('header_key')
+                            ->label('Header Key')
+                            ->dehydrated(false)
+                            ->readOnly()
+                            ->copyable()
+                            ->copyMessage('Header Key disalin!'),
                         TextInput::make('api_key')
                             ->label('API Key')
                             ->password()
-                            ->revealable(),
+                            ->revealable()
+                            ->copyable()
+                            ->copyMessage('API Key disalin!')
+                            ->suffixAction(
+                                \Filament\Actions\Action::make('generateApiKey')
+                                    ->icon('heroicon-o-arrow-path')
+                                    ->tooltip('Generate API Key')
+                                    ->requiresConfirmation()
+                                    ->modalHeading('Generate API Key Baru?')
+                                    ->modalDescription('API Key lama akan diganti. Pastikan untuk memperbarui konfigurasi klien Anda.')
+                                    ->action(function () {
+                                        $newKey = Str::random(32);
+                                        $this->configData['api_key'] = $newKey;
+                                        Notification::make()->success()->title('API Key baru di-generate. Jangan lupa simpan.')->send();
+                                    }),
+                            ),
                     ])
                     ->columns(2),
 
