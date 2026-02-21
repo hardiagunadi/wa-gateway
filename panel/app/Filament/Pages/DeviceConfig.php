@@ -33,7 +33,7 @@ class DeviceConfig extends Page implements HasForms
     public ?array $configData = [];
 
     // Test send form data
-    public string $testPhone = '';
+    public ?array $testSendData = [];
 
     public function mount(string $session): void
     {
@@ -74,6 +74,7 @@ class DeviceConfig extends Page implements HasForms
     {
         return [
             'configForm',
+            'testSendForm',
         ];
     }
 
@@ -166,6 +167,24 @@ class DeviceConfig extends Page implements HasForms
                     ]),
             ])
             ->statePath('configData');
+    }
+
+    public function testSendForm(Schema $form): Schema
+    {
+        return $form
+            ->schema([
+                TextInput::make('phone')
+                    ->label('Nomor Tujuan')
+                    ->placeholder('6281234567890')
+                    ->required()
+                    ->tel()
+                    ->helperText('Format: 628xxx (tanpa tanda + atau spasi)'),
+                \Filament\Forms\Components\Textarea::make('message')
+                    ->label('Isi Pesan')
+                    ->placeholder('Kosongkan untuk menggunakan pesan default...')
+                    ->rows(3),
+            ])
+            ->statePath('testSendData');
     }
 
     public function saveConfig(): void
@@ -286,36 +305,24 @@ class DeviceConfig extends Page implements HasForms
 
     public function testSendMessage(): void
     {
-        $phone = trim($this->testPhone);
+        $data = $this->testSendForm->getState();
+
+        $phone = trim($data['phone'] ?? '');
         if ($phone === '') {
             Notification::make()->danger()->title('Nomor telepon wajib diisi.')->send();
             return;
         }
 
-        try {
+        $text = trim($data['message'] ?? '');
+        if ($text === '') {
             $text = "Aplikasi berjalan lancar dan perangkat {$this->session} berjalan normal.";
+        }
+
+        try {
             $this->gateway()->sendTestMessage($this->session, $phone, $text);
             Notification::make()->success()->title('Pesan tes berhasil dikirim.')->send();
         } catch (\Throwable $e) {
             Notification::make()->danger()->title('Gagal: ' . $e->getMessage())->send();
-        }
-    }
-
-    public function getGroups(): array
-    {
-        try {
-            return $this->gateway()->listGroups($this->session);
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    public function getMessageStatuses(): array
-    {
-        try {
-            return $this->gateway()->listMessageStatuses($this->session);
-        } catch (\Throwable) {
-            return [];
         }
     }
 
