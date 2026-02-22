@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+# =========================
+# DETEKSI ROOT REPO
+# =========================
+if [[ -f "ecosystem.config.js" ]]; then
+  REPO_DIR="$(pwd)"
+else
+  REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+fi
+
 PANEL_DIR="${REPO_DIR}/panel"
 WEB_GROUP="www-data"
 RUN_USER="$(id -un)"
@@ -17,7 +25,7 @@ require_non_root(){
 
 require_ubuntu(){
   . /etc/os-release
-  [[ "${ID:-}" != "ubuntu" ]] && err "Script ini hanya untuk Ubuntu."
+  [[ "${ID:-}" != "ubuntu" ]] && err "Hanya untuk Ubuntu."
 }
 
 apt_update(){
@@ -53,64 +61,34 @@ install_composer(){
   fi
 }
 
-install_laravel_panel(){
-
-  [[ -d "$PANEL_DIR" ]] || err "Folder panel tidak ditemukan."
-
-  log "Install dependency Laravel di /panel"
+install_laravel(){
+  [[ -d "$PANEL_DIR" ]] || err "Folder panel tidak ditemukan di ${PANEL_DIR}"
 
   cd "$PANEL_DIR"
 
+  log "Composer install"
   composer install --no-dev --optimize-autoloader
 
-  if [[ ! -f ".env" ]]; then
-    cp .env.example .env || true
-  fi
+  [[ -f ".env" ]] || cp .env.example .env
 
   php artisan key:generate
 
   sudo chown -R ${RUN_USER}:${WEB_GROUP} "$PANEL_DIR"
   sudo chmod -R 775 storage bootstrap/cache
 
-  read -p "Jalankan migrate database? (y/n): " MIGRATE
-  if [[ "$MIGRATE" == "y" ]]; then
-    php artisan migrate --force
-  fi
-
   php artisan optimize
 
   log "Laravel panel siap."
 }
 
-setup_sudoers(){
-  local pm2_bin
-  pm2_bin="$(readlink -f "$(command -v pm2)")"
-  local sudoers_file="/etc/sudoers.d/wa-gateway-single"
-
-  log "Setup sudoers scoped"
-
-  sudo tee "$sudoers_file" > /dev/null <<EOF
-${WEB_GROUP} ALL=(${RUN_USER}) NOPASSWD: ${pm2_bin} start wa-gateway
-${WEB_GROUP} ALL=(${RUN_USER}) NOPASSWD: ${pm2_bin} stop wa-gateway
-${WEB_GROUP} ALL=(${RUN_USER}) NOPASSWD: ${pm2_bin} restart wa-gateway
-${WEB_GROUP} ALL=(${RUN_USER}) NOPASSWD: ${pm2_bin} list
-EOF
-
-  sudo chmod 0440 "$sudoers_file"
-  sudo visudo -cf "$sudoers_file" || {
-    sudo rm -f "$sudoers_file"
-    err "Sudoers invalid."
-  }
-}
-
 setup_pm2(){
   cd "$REPO_DIR"
 
-  log "Start PM2 gateway"
   pm2 start ecosystem.config.js --name wa-gateway || true
 
   HOME_DIR="$(getent passwd "${RUN_USER}" | cut -d: -f6)"
   STARTUP_CMD="$(pm2 startup systemd -u "${RUN_USER}" --hp "${HOME_DIR}" | grep sudo | head -n1 || true)"
+
   [[ -n "$STARTUP_CMD" ]] && eval "$STARTUP_CMD"
 
   pm2 save
@@ -122,14 +100,13 @@ main(){
   install_node
   install_pm2
   install_composer
-  install_laravel_panel
-  setup_sudoers
+  install_laravel
   setup_pm2
 
   log "===================================="
-  log "Single-user install selesai."
+  log "Install selesai."
   log "User PM2: ${RUN_USER}"
-  log "Laravel panel di: /panel"
+  log "Repo dir: ${REPO_DIR}"
   log "===================================="
 }
 
