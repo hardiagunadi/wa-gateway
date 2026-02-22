@@ -180,6 +180,15 @@ setup_gateway_logs() {
   as_root chmod -R 2775 "$logs_dir"
 }
 
+setup_gateway_media() {
+  local media_dir="${REPO_DIR}/media"
+  log "Siapkan folder media gateway"
+  mkdir -p "$media_dir"
+  touch "$media_dir/.gitkeep"
+  as_root chown -R "${EXPECTED_USER}:${WEB_GROUP}" "$media_dir"
+  as_root chmod -R 2775 "$media_dir"
+}
+
 setup_docs_symlink() {
   local public_docs="${REPO_DIR}/panel/public/docs"
   if [[ -L "$public_docs" ]]; then
@@ -224,6 +233,20 @@ prepare_panel_env() {
   set_env_value .env "PM2_APP_NAME"    "wa-gateway"
   set_env_value .env "PM2_CONFIG_FILE" "${REPO_DIR}/ecosystem.config.js"
   set_env_value .env "PM2_WORKDIR"     "${REPO_DIR}"
+
+  # Detect pm2 binary full path (penting jika pakai fnm/nvm)
+  local pm2_bin
+  pm2_bin="$(command -v pm2 2>/dev/null || true)"
+  if [[ -n "$pm2_bin" ]]; then
+    pm2_bin="$(readlink -f "$pm2_bin")"
+    log "PM2 binary ditemukan: ${pm2_bin}"
+    set_env_value .env "PM2_BINARY" "$pm2_bin"
+  else
+    warn "PM2 binary tidak ditemukan di PATH, panel mungkin tidak bisa kontrol PM2."
+  fi
+
+  # Set PM2_RUN_AS_USER agar www-data bisa menjalankan pm2 via sudo -u deploy
+  set_env_value .env "PM2_RUN_AS_USER" "${EXPECTED_USER}"
 }
 
 setup_panel() {
@@ -305,6 +328,34 @@ set_permissions() {
   fi
 }
 
+setup_pm2_sudoers() {
+  local pm2_bin
+  pm2_bin="$(command -v pm2 2>/dev/null || true)"
+  if [[ -z "$pm2_bin" ]]; then
+    warn "PM2 binary tidak ditemukan, skip setup sudoers."
+    return
+  fi
+  pm2_bin="$(readlink -f "$pm2_bin")"
+
+  local sudoers_file="/etc/sudoers.d/wa-gateway-pm2"
+  log "Setup sudoers agar ${WEB_GROUP} bisa menjalankan pm2 sebagai ${EXPECTED_USER}"
+
+  # Allow www-data to run pm2 as deploy without password
+  as_root tee "$sudoers_file" > /dev/null <<EOF
+# Allow web server user to manage PM2 as ${EXPECTED_USER}
+${WEB_GROUP} ALL=(${EXPECTED_USER}) NOPASSWD: ${pm2_bin} *
+EOF
+  as_root chmod 0440 "$sudoers_file"
+
+  # Validate sudoers syntax
+  if as_root visudo -cf "$sudoers_file" >/dev/null 2>&1; then
+    log "Sudoers file valid: ${sudoers_file}"
+  else
+    err "Sudoers file tidak valid, menghapus untuk keamanan."
+    as_root rm -f "$sudoers_file"
+  fi
+}
+
 setup_pm2_gateway() {
   cd "$REPO_DIR"
 
@@ -356,10 +407,12 @@ main() {
   prepare_gateway_env
   install_gateway_deps
   setup_gateway_logs
+  setup_gateway_media
   prepare_panel_env
   setup_panel
   set_permissions
   setup_docs_symlink
+  setup_pm2_sudoers
   setup_pm2_gateway
 
   log ""

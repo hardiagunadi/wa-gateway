@@ -18,7 +18,7 @@ class AuthController extends Controller
     public function showLogin(): View|RedirectResponse
     {
         if (Auth::check()) {
-            return redirect()->route('dashboard');
+            return redirect('/admin');
         }
 
         return view('login');
@@ -58,7 +58,7 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('dashboard')->with('status', 'Login berhasil.');
+        return redirect('/admin')->with('status', 'Login berhasil.');
     }
 
     public function logout(Request $request): RedirectResponse
@@ -73,7 +73,7 @@ class AuthController extends Controller
     public function showForgotPassword(): View|RedirectResponse
     {
         if (Auth::check()) {
-            return redirect()->route('dashboard');
+            return redirect('/admin');
         }
 
         return view('forgot-password');

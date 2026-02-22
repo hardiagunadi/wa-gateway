@@ -71,6 +71,8 @@ class ServerStatusWidget extends Widget
             config('gateway.pm2.app_name'),
             config('gateway.pm2.config_file'),
             config('gateway.pm2.workdir'),
+            config('gateway.pm2.binary', 'pm2'),
+            config('gateway.pm2.run_as_user', ''),
         );
     }
 }

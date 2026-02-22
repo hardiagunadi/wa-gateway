@@ -17,6 +17,8 @@ return [
         'app_name'    => env('PM2_APP_NAME', 'wa-gateway'),
         'config_file' => env('PM2_CONFIG_FILE', dirname(base_path()) . DIRECTORY_SEPARATOR . 'ecosystem.config.js'),
         'workdir'     => env('PM2_WORKDIR', dirname(base_path())),
+        'binary'      => env('PM2_BINARY', 'pm2'),
+        'run_as_user' => env('PM2_RUN_AS_USER', ''),
     ],
 
     // Comma-separated session IDs allowed to send password reset messages.

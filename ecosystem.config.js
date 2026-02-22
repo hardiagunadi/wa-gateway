@@ -10,6 +10,7 @@ module.exports = {
       interpreter: "node",
       interpreter_args: "--import ./node_modules/tsx/dist/loader.mjs",
       cwd: rootDir,
+      exec_mode: "fork",
       instances: 1,
       autorestart: true,
       watch: false,

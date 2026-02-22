@@ -13,7 +13,9 @@ class Pm2Service
     public function __construct(
         private readonly string $appName,
         private readonly string $configFile,
-        private readonly string $workingDir
+        private readonly string $workingDir,
+        private readonly string $pm2Binary = 'pm2',
+        private readonly string $runAsUser = '',
     ) {
         $this->outLogFile   = $workingDir . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'pm2-out.log';
         $this->errorLogFile = $workingDir . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'pm2-error.log';
@@ -99,7 +101,10 @@ class Pm2Service
     private function getRawStatus(): ?array
     {
         try {
-            $process = Process::fromShellCommandline('pm2 jlist 2>/dev/null', $this->workingDir);
+            $process = Process::fromShellCommandline(
+                $this->buildCommand(['jlist']) . ' 2>/dev/null',
+                $this->workingDir,
+            );
             $process->setTimeout(10);
             $process->run();
 
@@ -127,8 +132,7 @@ class Pm2Service
 
     private function runPm2(array $args): void
     {
-        $escapedArgs = array_map('escapeshellarg', $args);
-        $cmd         = 'pm2 ' . implode(' ', $escapedArgs);
+        $cmd = $this->buildCommand($args);
 
         $process = Process::fromShellCommandline($cmd, $this->workingDir);
         $process->setTimeout(30);
@@ -138,5 +142,17 @@ class Pm2Service
             $err = trim($process->getErrorOutput() ?: $process->getOutput());
             throw new RuntimeException("PM2 command gagal: {$err}");
         }
+    }
+
+    private function buildCommand(array $args): string
+    {
+        $escapedArgs = array_map('escapeshellarg', $args);
+        $pm2Cmd = escapeshellarg($this->pm2Binary) . ' ' . implode(' ', $escapedArgs);
+
+        if ($this->runAsUser !== '' && $this->runAsUser !== posix_getpwuid(posix_geteuid())['name']) {
+            return 'sudo -n -u ' . escapeshellarg($this->runAsUser) . ' ' . $pm2Cmd;
+        }
+
+        return $pm2Cmd;
     }
 }
