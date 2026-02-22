@@ -431,9 +431,19 @@ class ManageDevices extends Page implements HasTable, HasForms
             return;
         }
 
-        // Logout dulu agar session bersih, lalu hapus — abaikan error API
+        // Logout dulu — abaikan error (mungkin sudah disconnected)
         try { $this->gateway()->logoutSession($sessionId); } catch (\Throwable) {}
-        try { $this->gateway()->deleteSession($sessionId); } catch (\Throwable) {}
+
+        // Hapus session dari gateway
+        try {
+            $this->gateway()->deleteSession($sessionId);
+        } catch (\Throwable $e) {
+            Notification::make()->danger()
+                ->title('Gagal menghapus perangkat dari gateway.')
+                ->body($e->getMessage())
+                ->send();
+            return;
+        }
 
         // Notifikasi sebelum hapus ownership (agar pemilik masih terdeteksi)
         $this->notifyDb(
@@ -444,11 +454,11 @@ class ManageDevices extends Page implements HasTable, HasForms
             $sessionId,
         );
 
-        // Selalu bersihkan data lokal meski API gagal
+        // Bersihkan data lokal
         $this->sessionConfigStore()->delete($sessionId);
         DeviceOwnership::where('session_id', $sessionId)->delete();
 
-        Notification::make()->success()->title("Device {$sessionId} dihapus.")->send();
+        Notification::make()->success()->title("Device {$sessionId} berhasil dihapus.")->send();
     }
 
     protected function transferOwnership(string $sessionId, int $userId): void
