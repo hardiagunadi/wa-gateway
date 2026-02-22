@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# =========================
-# DETEKSI ROOT REPO
-# =========================
-if [[ -f "ecosystem.config.js" ]]; then
-  REPO_DIR="$(pwd)"
-else
-  REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-fi
-
+# ==============================
+# DETECT ROOT REPO PROPERLY
+# ==============================
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PANEL_DIR="${REPO_DIR}/panel"
+
 WEB_GROUP="www-data"
 RUN_USER="$(id -un)"
 APT_UPDATED=0
@@ -18,14 +15,22 @@ APT_UPDATED=0
 log(){ echo -e "\033[1;32m[+]\033[0m $*"; }
 err(){ echo -e "\033[1;31m[-]\033[0m $*"; exit 1; }
 
+# ==============================
+# BASIC VALIDATION
+# ==============================
 require_non_root(){
   [[ $EUID -eq 0 ]] && err "Jangan jalankan sebagai root."
-  sudo -v
+  sudo -v >/dev/null 2>&1 || err "User tidak memiliki akses sudo."
 }
 
 require_ubuntu(){
   . /etc/os-release
-  [[ "${ID:-}" != "ubuntu" ]] && err "Hanya untuk Ubuntu."
+  [[ "${ID:-}" != "ubuntu" ]] && err "Script ini hanya untuk Ubuntu."
+}
+
+validate_repo(){
+  [[ -f "${REPO_DIR}/ecosystem.config.js" ]] || err "ecosystem.config.js tidak ditemukan di ${REPO_DIR}"
+  [[ -d "${PANEL_DIR}" ]] || err "Folder panel tidak ditemukan di ${PANEL_DIR}"
 }
 
 apt_update(){
@@ -35,12 +40,17 @@ apt_update(){
   fi
 }
 
+# ==============================
+# INSTALL DEPENDENCIES
+# ==============================
 install_node(){
   if ! command -v node >/dev/null; then
     log "Install Node 20"
     apt_update
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt-get install -y nodejs
+  else
+    log "Node sudah terinstall: $(node -v)"
   fi
 }
 
@@ -48,6 +58,8 @@ install_pm2(){
   if ! command -v pm2 >/dev/null; then
     log "Install PM2"
     sudo npm install -g pm2
+  else
+    log "PM2 sudah terinstall: $(pm2 -v)"
   fi
 }
 
@@ -58,32 +70,73 @@ install_composer(){
     php composer-setup.php
     sudo mv composer.phar /usr/local/bin/composer
     rm -f composer-setup.php
+  else
+    log "Composer sudah terinstall: $(composer --version | head -n1)"
   fi
 }
 
-install_laravel(){
-  [[ -d "$PANEL_DIR" ]] || err "Folder panel tidak ditemukan di ${PANEL_DIR}"
+# ==============================
+# INSTALL LARAVEL PANEL
+# ==============================
+install_laravel_panel(){
+
+  log "Install dependency Laravel di /panel"
 
   cd "$PANEL_DIR"
 
-  log "Composer install"
   composer install --no-dev --optimize-autoloader
 
-  [[ -f ".env" ]] || cp .env.example .env
+  if [[ ! -f ".env" ]]; then
+    cp .env.example .env || true
+  fi
 
   php artisan key:generate
 
   sudo chown -R ${RUN_USER}:${WEB_GROUP} "$PANEL_DIR"
   sudo chmod -R 775 storage bootstrap/cache
 
+  read -p "Jalankan migrate database sekarang? (y/n): " MIGRATE
+  if [[ "$MIGRATE" == "y" ]]; then
+    php artisan migrate --force
+  fi
+
   php artisan optimize
 
   log "Laravel panel siap."
 }
 
+# ==============================
+# SETUP SUDOERS (SCOPED)
+# ==============================
+setup_sudoers(){
+  local pm2_bin
+  pm2_bin="$(readlink -f "$(command -v pm2)")"
+  local sudoers_file="/etc/sudoers.d/wa-gateway-single"
+
+  log "Setup sudoers scoped"
+
+  sudo tee "$sudoers_file" > /dev/null <<EOF
+${WEB_GROUP} ALL=(${RUN_USER}) NOPASSWD: ${pm2_bin} start wa-gateway
+${WEB_GROUP} ALL=(${RUN_USER}) NOPASSWD: ${pm2_bin} stop wa-gateway
+${WEB_GROUP} ALL=(${RUN_USER}) NOPASSWD: ${pm2_bin} restart wa-gateway
+${WEB_GROUP} ALL=(${RUN_USER}) NOPASSWD: ${pm2_bin} list
+EOF
+
+  sudo chmod 0440 "$sudoers_file"
+
+  sudo visudo -cf "$sudoers_file" || {
+    sudo rm -f "$sudoers_file"
+    err "File sudoers invalid."
+  }
+}
+
+# ==============================
+# SETUP PM2
+# ==============================
 setup_pm2(){
   cd "$REPO_DIR"
 
+  log "Start PM2 gateway"
   pm2 start ecosystem.config.js --name wa-gateway || true
 
   HOME_DIR="$(getent passwd "${RUN_USER}" | cut -d: -f6)"
@@ -94,19 +147,25 @@ setup_pm2(){
   pm2 save
 }
 
+# ==============================
+# MAIN
+# ==============================
 main(){
   require_non_root
   require_ubuntu
+  validate_repo
   install_node
   install_pm2
   install_composer
-  install_laravel
+  install_laravel_panel
+  setup_sudoers
   setup_pm2
 
   log "===================================="
-  log "Install selesai."
-  log "User PM2: ${RUN_USER}"
-  log "Repo dir: ${REPO_DIR}"
+  log "INSTALL SELESAI"
+  log "User PM2 : ${RUN_USER}"
+  log "Repo     : ${REPO_DIR}"
+  log "Panel    : ${PANEL_DIR}"
   log "===================================="
 }
 
