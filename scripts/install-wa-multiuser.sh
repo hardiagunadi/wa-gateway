@@ -9,6 +9,7 @@ fi
 PROJECT_USER="$1"
 WEB_GROUP="www-data"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PANEL_DIR="${REPO_DIR}/panel"
 APT_UPDATED=0
 
 log(){ echo -e "\033[1;32m[+]\033[0m $*"; }
@@ -44,6 +45,55 @@ install_pm2(){
     log "Install PM2"
     sudo npm install -g pm2
   fi
+}
+
+install_composer(){
+  if ! command -v composer >/dev/null; then
+    log "Install Composer"
+    php -r "copy('https://getcomposer.org/installer','composer-setup.php');"
+    php composer-setup.php
+    sudo mv composer.phar /usr/local/bin/composer
+    rm -f composer-setup.php
+  fi
+}
+
+install_laravel_panel(){
+
+  [[ -d "$PANEL_DIR" ]] || err "Folder panel tidak ditemukan di ${PANEL_DIR}"
+
+  log "Install Laravel dependency di /panel"
+
+  sudo -u "${PROJECT_USER}" bash -c "
+    cd ${PANEL_DIR}
+    composer install --no-dev --optimize-autoloader
+  "
+
+  if [[ ! -f "${PANEL_DIR}/.env" ]]; then
+    sudo -u "${PROJECT_USER}" cp ${PANEL_DIR}/.env.example ${PANEL_DIR}/.env || true
+  fi
+
+  sudo -u "${PROJECT_USER}" bash -c "
+    cd ${PANEL_DIR}
+    php artisan key:generate
+  "
+
+  sudo chown -R ${PROJECT_USER}:${WEB_GROUP} ${PANEL_DIR}
+  sudo chmod -R 775 ${PANEL_DIR}/storage ${PANEL_DIR}/bootstrap/cache
+
+  read -p "Jalankan migrate database sekarang? (y/n): " MIGRATE
+  if [[ "$MIGRATE" == "y" ]]; then
+    sudo -u "${PROJECT_USER}" bash -c "
+      cd ${PANEL_DIR}
+      php artisan migrate --force
+    "
+  fi
+
+  sudo -u "${PROJECT_USER}" bash -c "
+    cd ${PANEL_DIR}
+    php artisan optimize
+  "
+
+  log "Laravel panel siap."
 }
 
 setup_sudoers_scoped(){
@@ -87,11 +137,14 @@ main(){
   require_user_exists
   install_node
   install_pm2
+  install_composer
+  install_laravel_panel
   setup_sudoers_scoped
   setup_pm2_multi
 
   log "===================================="
   log "Multi-user install selesai."
+  log "Laravel panel terinstall di /panel."
   log "PM2 milik user: ${PROJECT_USER}"
   log "===================================="
 }
