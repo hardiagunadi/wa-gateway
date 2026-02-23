@@ -99,8 +99,18 @@ class ManageDevices extends Page implements HasTable, HasForms
                     ->label('Start')
                     ->icon('heroicon-o-play')
                     ->color('success')
+                    ->hidden(fn ($record) => ($record['status'] ?? '') === 'connected')
                     ->requiresConfirmation()
                     ->action(fn ($record) => $this->startSession($record['session_id'])),
+                Action::make('stop')
+                    ->label('Stop')
+                    ->icon('heroicon-o-stop')
+                    ->color('danger')
+                    ->visible(fn ($record) => ($record['status'] ?? '') === 'connected')
+                    ->requiresConfirmation()
+                    ->modalHeading('Stop Perangkat')
+                    ->modalDescription('Session WhatsApp akan diputus. Perangkat tetap terdaftar dan bisa dihubungkan kembali dengan tombol Start.')
+                    ->action(fn ($record) => $this->stopSession($record['session_id'])),
                 Action::make('restart')
                     ->label('Restart')
                     ->icon('heroicon-o-arrow-path')
@@ -398,6 +408,21 @@ class ManageDevices extends Page implements HasTable, HasForms
             }
 
             Notification::make()->success()->title($qr ? 'Scan QR untuk menghubungkan.' : 'Session berhasil tersambung.')->send();
+        } catch (\Throwable $e) {
+            Notification::make()->danger()->title('Gagal: ' . $e->getMessage())->send();
+        }
+    }
+
+    protected function stopSession(string $sessionId): void
+    {
+        if (! $this->canManageSession($sessionId)) {
+            Notification::make()->danger()->title('Tidak punya akses ke session ini.')->send();
+            return;
+        }
+
+        try {
+            $this->gateway()->logoutSession($sessionId);
+            Notification::make()->success()->title("Perangkat {$sessionId} berhasil diputus.")->send();
         } catch (\Throwable $e) {
             Notification::make()->danger()->title('Gagal: ' . $e->getMessage())->send();
         }

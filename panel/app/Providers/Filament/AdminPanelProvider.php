@@ -8,6 +8,7 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -39,6 +40,24 @@ class AdminPanelProvider extends PanelProvider
                 'Perangkat',
                 'Pengguna',
                 'Pengaturan',
+                'Dokumentasi',
+            ])
+            ->navigationItems([
+                NavigationItem::make('Panduan API')
+                    ->url('/docs/wa-gateway-api-guide.html', shouldOpenInNewTab: true)
+                    ->icon('heroicon-o-book-open')
+                    ->group('Dokumentasi')
+                    ->sort(1),
+                NavigationItem::make('Checklist Deployment')
+                    ->url('/docs/DEPLOY_CHECKLIST.md', shouldOpenInNewTab: true)
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->group('Dokumentasi')
+                    ->sort(2),
+                NavigationItem::make('API Kompatibilitas')
+                    ->url('/docs/WA_GATEWAY_COMPAT_API.md', shouldOpenInNewTab: true)
+                    ->icon('heroicon-o-puzzle-piece')
+                    ->group('Dokumentasi')
+                    ->sort(3),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
