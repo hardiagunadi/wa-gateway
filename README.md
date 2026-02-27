@@ -7,8 +7,6 @@ A headless multi-session WhatsApp gateway with multi-device support, runnable di
 - Send text messages, images, videos, and documents
 - Webhook integration
 
-📌 Also see: [wa-multi-session](https://github.com/mimamch/wa-multi-session)
-
 ---
 
 ## ⚠️ Prerequisites
@@ -164,12 +162,3 @@ To update to the latest version:
 git pull
 npm install
 ```
-
-## Documentation
-
-For full documentation, examples, and guides, visit:
-👉 [https://github.com/mimamch/wa-gateway](https://github.com/mimamch/wa-gateway)
-
----
-
-Let me know if you need configuration examples with environment variables (like webhook setup) or a multi-service deployment!
