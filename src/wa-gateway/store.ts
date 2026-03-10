@@ -121,6 +121,24 @@ export const getContactByPhone = async (token: string, phone: string) => {
   return contacts.find((c) => c.phone === phone) ?? null;
 };
 
+export const deleteContactsByToken = async (token: string) => {
+  const cleanToken = (token || "").trim();
+  if (!cleanToken) return false;
+
+  const all = await readJson<Record<string, WaGatewayContact[]>>(
+    contactsPath,
+    {}
+  );
+
+  if (!Object.prototype.hasOwnProperty.call(all, cleanToken)) {
+    return false;
+  }
+
+  delete all[cleanToken];
+  await writeJson(contactsPath, all);
+  return true;
+};
+
 export const upsertContactName = async (
   token: string,
   phone: string,

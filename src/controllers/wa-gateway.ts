@@ -36,6 +36,7 @@ import {
   addAutoreplyRule,
   addSchedules,
   cancelSchedules,
+  deleteContactsByToken,
   deleteAutoreplyRule,
   findAutoreplyByKeyword,
   getContactByPhone,
@@ -209,6 +210,7 @@ const createWaGatewayDeviceRouter = () => {
     await deleteDeviceByToken(token);
     await deleteDeviceBySessionId(sessionId);
     await removeStoredSession(sessionId);
+    await deleteContactsByToken(token);
     return c.json({ status: true, message: "device deleted" });
   });
 

@@ -10,7 +10,12 @@ import {
   listStoredSessions,
   removeStoredSession,
 } from "../session-store";
-import { ensureDeviceRegistryForSession } from "../wa-gateway/registry";
+import {
+  deleteDeviceBySessionId,
+  ensureDeviceRegistryForSession,
+  getDeviceBySessionId,
+} from "../wa-gateway/registry";
+import { deleteContactsByToken } from "../wa-gateway/store";
 
 export const createSessionController = () => {
   const startSessionSchema = z.object({
@@ -242,6 +247,8 @@ export const createSessionController = () => {
         throw new HTTPException(400, { message: "session is required" });
       }
 
+      const device = await getDeviceBySessionId(sessionId).catch(() => null);
+
       await whatsapp.deleteSession(sessionId);
 
       const adapter = (whatsapp as any).adapter;
@@ -250,11 +257,13 @@ export const createSessionController = () => {
       }
 
       await removeStoredSession(sessionId);
-      try {
-        const { deleteDeviceBySessionId } = await import("../wa-gateway/registry");
-        await deleteDeviceBySessionId(sessionId);
-      } catch (err) {
+      await deleteDeviceBySessionId(sessionId).catch((err) => {
         console.error("Failed to remove registry entry", err);
+      });
+      if (device?.token) {
+        await deleteContactsByToken(device.token).catch((err) => {
+          console.error("Failed to remove contacts data", err);
+        });
       }
 
       return c.json({ data: "success" });
