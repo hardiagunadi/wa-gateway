@@ -192,6 +192,126 @@ Setiap pesan masuk akan tetap dikirim ke `webhookBaseUrl` dengan payload standar
 
 Opsi ini tidak mengubah atau menonaktifkan webhook lain yang sudah berjalan.
 
+### Webhook Device Settings (Incoming, Auto Reply, Tracking, Device Status)
+
+Konfigurasi ini dipakai dari **Panel -> Device Settings -> Webhook** per session/device.
+
+Penting:
+- Isi `webhookBaseUrl` dengan **base URL saja**, contoh: `https://example.com/webhook`
+- Jangan isi akhiran endpoint (`/message`, `/auto-reply`, `/status`, `/session`) karena akan ditambahkan otomatis oleh gateway.
+
+Endpoint yang dipanggil:
+- Incoming message: `POST <baseUrl>/message`
+- Auto reply: `POST <baseUrl>/auto-reply`
+- Tracking status pesan: `POST <baseUrl>/status`
+- Device status: `POST <baseUrl>/session`
+
+Contoh payload:
+
+`POST /message`:
+```json
+{
+  "session": "62812xxxx",
+  "from": "62813xxxx@s.whatsapp.net",
+  "sender": "62813xxxx@s.whatsapp.net",
+  "participant": "62813xxxx",
+  "isGroup": false,
+  "group": null,
+  "message": "Halo",
+  "media": {
+    "image": null,
+    "video": null,
+    "document": null,
+    "audio": null
+  }
+}
+```
+
+`POST /auto-reply` menerima payload yang sama seperti `/message`.  
+Untuk membalas otomatis, webhook cukup mengembalikan salah satu field berikut:
+
+```json
+{ "reply": "Terima kasih, pesan Anda sudah diterima." }
+```
+
+atau
+
+```json
+{ "message": "Terima kasih, pesan Anda sudah diterima." }
+```
+
+`POST /status`:
+```json
+{
+  "session": "62812xxxx",
+  "message_id": "BAE5F...",
+  "message_status": "READ",
+  "tracking_url": "/message/status?session=62812xxxx&id=BAE5F..."
+}
+```
+
+`POST /session`:
+```json
+{
+  "session": "62812xxxx",
+  "status": "connecting"
+}
+```
+
+#### Contoh script webhook (Node.js + Express)
+
+Simpan file `webhook-server.js`:
+
+```js
+const express = require("express");
+
+const app = express();
+app.use(express.json());
+
+app.post("/message", (req, res) => {
+  console.log("[MESSAGE]", req.body);
+  res.json({ ok: true });
+});
+
+app.post("/auto-reply", (req, res) => {
+  const text = String(req.body?.message || "").toLowerCase();
+  if (text.includes("halo")) {
+    return res.json({ reply: "Halo juga. Ada yang bisa dibantu?" });
+  }
+  return res.json({ ok: true });
+});
+
+app.post("/status", (req, res) => {
+  console.log("[TRACKING]", req.body);
+  res.json({ ok: true });
+});
+
+app.post("/session", (req, res) => {
+  console.log("[DEVICE STATUS]", req.body);
+  res.json({ ok: true });
+});
+
+app.listen(3000, () => {
+  console.log("Webhook server listening on http://localhost:3000");
+});
+```
+
+Jalankan:
+
+```bash
+npm init -y
+npm i express
+node webhook-server.js
+```
+
+Cara pakai di gateway:
+1. Buka **Device Settings -> Webhook**.
+2. Isi `Webhook Pesan Masuk` dengan base URL, contoh `http://SERVER:3000`.
+3. Aktifkan toggle yang dibutuhkan:
+   `Aktifkan Webhook Pesan Masuk`, `Aktifkan Auto Reply`, `Aktifkan Tracking`, `Aktifkan Webhook Status Device`.
+4. Klik **Simpan**.
+5. Gunakan tombol test webhook di panel untuk verifikasi respons endpoint.
+
 ### POST `/api/v2/send-message`
 Content-Type: `application/json`
 

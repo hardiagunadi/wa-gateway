@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Services\Pm2Service;
 use Filament\Widgets\Widget;
+use Symfony\Component\Process\Process;
 
 class LogViewerWidget extends Widget
 {
@@ -27,16 +28,71 @@ class LogViewerWidget extends Widget
             config('gateway.pm2.run_as_user', ''),
         );
 
-        $logFile = $pm2->getLogFile();
-        if (! is_string($logFile) || $logFile === '' || ! is_readable($logFile) || filesize($logFile) === 0) {
+        $logFile = $this->resolveLogFile($pm2->getLogFile());
+        if ($logFile === null) {
             return null;
         }
 
         try {
-            $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
-            return implode("\n", array_slice($lines, -30));
+            if (str_ends_with($logFile, '.gz')) {
+                $process = Process::fromShellCommandline(
+                    'gzip -cd -- ' . escapeshellarg($logFile) . ' | tail -n 30'
+                );
+                $process->setTimeout(5);
+                $process->run();
+                if (! $process->isSuccessful()) {
+                    return null;
+                }
+
+                $out = trim($process->getOutput());
+                return $out !== '' ? $out : null;
+            }
+
+            $process = new Process(['tail', '-n', '30', $logFile]);
+            $process->setTimeout(5);
+            $process->run();
+            if (! $process->isSuccessful()) {
+                return null;
+            }
+
+            $out = trim($process->getOutput());
+            return $out !== '' ? $out : null;
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    private function resolveLogFile(string $primaryLogFile): ?string
+    {
+        if ($primaryLogFile === '') {
+            return null;
+        }
+
+        $candidates = [];
+
+        if (is_readable($primaryLogFile) && filesize($primaryLogFile) > 0) {
+            return $primaryLogFile;
+        }
+
+        $rotated = glob($primaryLogFile . '*') ?: [];
+        foreach ($rotated as $file) {
+            if ($file === $primaryLogFile) {
+                continue;
+            }
+            if (! is_file($file) || ! is_readable($file)) {
+                continue;
+            }
+            if (filesize($file) <= 0) {
+                continue;
+            }
+            $candidates[] = $file;
+        }
+
+        if ($candidates === []) {
+            return null;
+        }
+
+        usort($candidates, static fn (string $a, string $b): int => filemtime($b) <=> filemtime($a));
+        return $candidates[0] ?? null;
     }
 }

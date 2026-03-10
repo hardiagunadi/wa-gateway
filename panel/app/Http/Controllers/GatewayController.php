@@ -190,7 +190,7 @@ class GatewayController extends Controller
         ]);
 
         $type = $data['type'];
-        $baseUrl = rtrim(trim($data['url']), '/');
+        $baseUrl = $this->normalizeWebhookBaseUrl($data['url']) ?? '';
         if ($baseUrl === '') {
             return response()->json(['ok' => false, 'message' => 'URL kosong.'], 400);
         }
@@ -348,6 +348,19 @@ class GatewayController extends Controller
             ['session_id' => $sessionId],
             ['user_id' => $user->id]
         );
+    }
+
+    private function normalizeWebhookBaseUrl(?string $url): ?string
+    {
+        $base = rtrim(trim((string) $url), '/');
+        if ($base === '') {
+            return null;
+        }
+
+        $normalized = preg_replace('#/(message|auto-reply|status|session)$#i', '', $base);
+        $normalized = is_string($normalized) ? rtrim($normalized, '/') : $base;
+
+        return $normalized !== '' ? $normalized : null;
     }
 
 }

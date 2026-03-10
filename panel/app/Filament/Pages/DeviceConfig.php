@@ -203,16 +203,17 @@ class DeviceConfig extends Page implements HasForms
             $deviceName = $existing['deviceName'] ?? null;
         }
 
-        $webhookBaseUrl = trim($data['webhook_base_url'] ?? '');
-        if ($webhookBaseUrl === '') {
-            $webhookBaseUrl = null;
-        }
+        $webhookBaseUrl = $this->normalizeWebhookBaseUrl($data['webhook_base_url'] ?? null);
+        $trackingBaseUrl = $this->normalizeWebhookBaseUrl($data['tracking_webhook_base_url'] ?? null)
+            ?: $this->normalizeWebhookBaseUrl($existing['trackingWebhookBaseUrl'] ?? null);
+        $deviceStatusBaseUrl = $this->normalizeWebhookBaseUrl($data['device_status_webhook_base_url'] ?? null)
+            ?: $this->normalizeWebhookBaseUrl($existing['deviceStatusWebhookBaseUrl'] ?? null);
 
         $config = [
             'deviceName' => $deviceName,
             'webhookBaseUrl' => $webhookBaseUrl,
-            'trackingWebhookBaseUrl' => trim($data['tracking_webhook_base_url'] ?? '') ?: ($existing['trackingWebhookBaseUrl'] ?? null),
-            'deviceStatusWebhookBaseUrl' => trim($data['device_status_webhook_base_url'] ?? '') ?: ($existing['deviceStatusWebhookBaseUrl'] ?? null),
+            'trackingWebhookBaseUrl' => $trackingBaseUrl,
+            'deviceStatusWebhookBaseUrl' => $deviceStatusBaseUrl,
             'apiKey' => $apiKey,
             'incomingEnabled' => $data['incoming_enabled'] ?? false,
             'autoReplyEnabled' => $data['auto_reply_enabled'] ?? false,
@@ -249,7 +250,7 @@ class DeviceConfig extends Page implements HasForms
             default => 'webhook_base_url',
         };
 
-        $baseUrl = rtrim(trim($data[$urlField] ?? ''), '/');
+        $baseUrl = $this->normalizeWebhookBaseUrl($data[$urlField] ?? null) ?? '';
         if ($baseUrl === '') {
             Notification::make()->danger()->title('URL webhook kosong.')->send();
             return;
@@ -294,12 +295,37 @@ class DeviceConfig extends Page implements HasForms
             $resp = $client->post($baseUrl . $endpoint, $payload);
             $ok = $resp->successful();
 
+            if ($ok) {
+                Notification::make()
+                    ->title("OK ({$resp->status()})")
+                    ->color('success')
+                    ->send();
+                return;
+            }
+
+            $errorDetail = trim((string) $resp->body());
+            if ($errorDetail === '') {
+                $errorDetail = 'Webhook merespons gagal tanpa detail body.';
+            }
+
             Notification::make()
-                ->title($ok ? "OK ({$resp->status()})" : "GAGAL ({$resp->status()})")
-                ->color($ok ? 'success' : 'danger')
+                ->danger()
+                ->title("GAGAL ({$resp->status()})")
+                ->body($errorDetail)
+                ->persistent()
                 ->send();
         } catch (\Throwable $e) {
-            Notification::make()->danger()->title('GAGAL: ' . $e->getMessage())->send();
+            $errorDetail = trim($e->getMessage());
+            if ($errorDetail === '') {
+                $errorDetail = 'Terjadi error saat mengirim test webhook.';
+            }
+
+            Notification::make()
+                ->danger()
+                ->title('Gagal mengirim test webhook.')
+                ->body($errorDetail)
+                ->persistent()
+                ->send();
         }
     }
 
@@ -346,5 +372,18 @@ class DeviceConfig extends Page implements HasForms
     private function sessionConfigStore(): SessionConfigStore
     {
         return new SessionConfigStore(config('gateway.session_config_path'));
+    }
+
+    private function normalizeWebhookBaseUrl(?string $url): ?string
+    {
+        $base = rtrim(trim((string) $url), '/');
+        if ($base === '') {
+            return null;
+        }
+
+        $normalized = preg_replace('#/(message|auto-reply|status|session)$#i', '', $base);
+        $normalized = is_string($normalized) ? rtrim($normalized, '/') : $base;
+
+        return $normalized !== '' ? $normalized : null;
     }
 }

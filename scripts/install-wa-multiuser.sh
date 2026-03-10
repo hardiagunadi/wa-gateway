@@ -47,6 +47,21 @@ install_pm2(){
   fi
 }
 
+install_pm2_logrotate(){
+  if ! command -v pm2 >/dev/null; then
+    log "PM2 belum tersedia, skip pm2-logrotate"
+    return
+  fi
+
+  if sudo -u "${PROJECT_USER}" pm2 jlist 2>/dev/null | grep -q '"name":"pm2-logrotate"'; then
+    log "pm2-logrotate sudah terinstall untuk user ${PROJECT_USER}."
+    return
+  fi
+
+  log "Install PM2 module pm2-logrotate untuk user ${PROJECT_USER}"
+  sudo -u "${PROJECT_USER}" pm2 install pm2-logrotate || log "Gagal install pm2-logrotate, lanjut tanpa module ini"
+}
+
 install_composer(){
   if ! command -v composer >/dev/null; then
     log "Install Composer"
@@ -137,6 +152,7 @@ main(){
   require_user_exists
   install_node
   install_pm2
+  install_pm2_logrotate
   install_composer
   install_laravel_panel
   setup_sudoers_scoped

@@ -264,8 +264,11 @@ const resolveSenderInfo = async (message: MessageReceived) => {
   };
 };
 
-const normalizeBaseUrl = (baseUrl?: string) =>
-  (baseUrl || "").trim().replace(/\/$/, "");
+const normalizeBaseUrl = (baseUrl?: string) => {
+  const trimmed = (baseUrl || "").trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return trimmed.replace(/\/(message|auto-reply|status|session)$/i, "");
+};
 
 const getIncomingPreview = (message: MessageReceived) => {
   const content = message.message;

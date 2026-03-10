@@ -431,12 +431,74 @@ curl -X POST http://localhost:5001/api/v2/group/text \
 
     <section id="webhook" class="card">
       <div class="section-title"><span></span><h2>Webhook (opsional)</h2></div>
-      <p>Set <code>WEBHOOK_BASE_URL</code> di <span class="kbd">.env</span> untuk menerima event real-time.</p>
+      <p>Untuk konfigurasi per-device di panel, isi <strong>base URL</strong> saja (tanpa akhiran endpoint). Gateway akan menambahkan endpoint otomatis.</p>
       <ul>
-        <li>Session event: <code>POST /webhook/session</code></li>
-        <li>Message event: <code>POST /webhook/message</code></li>
+        <li>Incoming message: <code>POST &lt;baseUrl&gt;/message</code></li>
+        <li>Auto reply: <code>POST &lt;baseUrl&gt;/auto-reply</code></li>
+        <li>Tracking status pesan: <code>POST &lt;baseUrl&gt;/status</code></li>
+        <li>Status device: <code>POST &lt;baseUrl&gt;/session</code></li>
       </ul>
-      <p class="small">Pastikan endpoint Anda idempotent dan mampu menerima update status online/offline serta pesan masuk.</p>
+      <p class="small">Contoh benar: <code>https://example.com/webhook</code>. Jangan isi <code>.../message</code> atau endpoint lain di field base URL.</p>
+
+      <h3>Payload Ringkas</h3>
+      <pre><code>// POST /message
+{
+  "session": "62812xxxx",
+  "from": "62813xxxx@s.whatsapp.net",
+  "message": "Halo",
+  "media": { "image": null, "video": null, "document": null, "audio": null }
+}
+
+// POST /status
+{
+  "session": "62812xxxx",
+  "message_id": "BAE5F...",
+  "message_status": "READ",
+  "tracking_url": "/message/status?session=62812xxxx&id=BAE5F..."
+}
+
+// POST /session
+{
+  "session": "62812xxxx",
+  "status": "connecting"
+}</code></pre>
+
+      <h3>Contoh Script Webhook (Node.js)</h3>
+      <pre><code>const express = require("express");
+const app = express();
+app.use(express.json());
+
+app.post("/message", (req, res) => {
+  console.log("[MESSAGE]", req.body);
+  res.json({ ok: true });
+});
+
+app.post("/auto-reply", (req, res) => {
+  const text = String(req.body?.message || "").toLowerCase();
+  if (text.includes("halo")) return res.json({ reply: "Halo juga." });
+  return res.json({ ok: true });
+});
+
+app.post("/status", (req, res) => {
+  console.log("[TRACKING]", req.body);
+  res.json({ ok: true });
+});
+
+app.post("/session", (req, res) => {
+  console.log("[DEVICE STATUS]", req.body);
+  res.json({ ok: true });
+});
+
+app.listen(3000, () => console.log("Webhook server on :3000"));</code></pre>
+
+      <h3>Cara Penggunaan</h3>
+      <ol>
+        <li>Jalankan script webhook: <code>npm init -y && npm i express && node webhook-server.js</code></li>
+        <li>Buka <strong>Device Settings -&gt; Webhook</strong> di panel.</li>
+        <li>Isi <code>Webhook Pesan Masuk</code> dengan base URL, contoh <code>http://SERVER:3000</code>.</li>
+        <li>Aktifkan toggle sesuai kebutuhan: Incoming, Auto Reply, Tracking, dan Status Device.</li>
+        <li>Simpan konfigurasi lalu jalankan tombol test webhook di panel.</li>
+      </ol>
     </section>
 
     <section class="card">

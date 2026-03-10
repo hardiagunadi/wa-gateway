@@ -155,6 +155,24 @@ install_pm2() {
   sudo env "PATH=$PATH" npm install -g pm2
 }
 
+install_pm2_logrotate() {
+  if ! has_cmd pm2; then
+    warn "PM2 belum tersedia, skip instal pm2-logrotate."
+    return
+  fi
+
+  if pm2 jlist 2>/dev/null | grep -q '"name":"pm2-logrotate"'; then
+    log "pm2-logrotate sudah terpasang, skip."
+    return
+  fi
+
+  log "Instal PM2 module: pm2-logrotate"
+  pm2 install pm2-logrotate || {
+    warn "Gagal install pm2-logrotate. Lanjutkan installer tanpa module ini."
+    return
+  }
+}
+
 install_gateway_deps() {
   cd "$REPO_DIR"
   if [[ -f package-lock.json ]]; then
@@ -402,6 +420,7 @@ main() {
   fi
   install_node
   install_pm2
+  install_pm2_logrotate
   install_php
   install_composer
   prepare_gateway_env
