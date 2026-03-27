@@ -4,7 +4,11 @@ import { z } from "zod";
 import { createKeyMiddleware } from "../middlewares/key.middleware";
 import { toDataURL } from "qrcode";
 import { HTTPException } from "hono/http-exception";
-import { whatsapp } from "../whatsapp";
+import {
+  deleteSessionWithReconnectSuppressed,
+  suppressReconnect,
+  whatsapp,
+} from "../whatsapp";
 import {
   addStoredSession,
   listStoredSessions,
@@ -228,7 +232,7 @@ export const createSessionController = () => {
       const sessionId =
         c.req.query().session || (await c.req.json()).session || "";
       await addStoredSession(sessionId);
-      await whatsapp.deleteSession(sessionId);
+      await deleteSessionWithReconnectSuppressed(sessionId);
       return c.json({
         data: "success",
       });
@@ -249,7 +253,7 @@ export const createSessionController = () => {
 
       const device = await getDeviceBySessionId(sessionId).catch(() => null);
 
-      await whatsapp.deleteSession(sessionId);
+      await deleteSessionWithReconnectSuppressed(sessionId);
 
       const adapter = (whatsapp as any).adapter;
       if (adapter?.clearData) {
@@ -284,6 +288,7 @@ export const createSessionController = () => {
       }
 
       await addStoredSession(sessionId);
+      suppressReconnect(sessionId);
 
       const existing = await whatsapp.getSessionById(sessionId);
       if (existing?.sock) {

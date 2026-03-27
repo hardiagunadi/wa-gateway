@@ -178,7 +178,7 @@ class DeviceConfig extends Page implements HasForms
                     ->placeholder('6281234567890')
                     ->required()
                     ->tel()
-                    ->helperText('Format: 628xxx (tanpa tanda + atau spasi)'),
+                    ->helperText('Bisa 08xxx atau 628xxx (tanpa spasi).'),
                 \Filament\Forms\Components\Textarea::make('message')
                     ->label('Isi Pesan')
                     ->placeholder('Kosongkan untuk menggunakan pesan default...')
@@ -333,9 +333,9 @@ class DeviceConfig extends Page implements HasForms
     {
         $data = $this->testSendForm->getState();
 
-        $phone = trim($data['phone'] ?? '');
-        if ($phone === '') {
-            Notification::make()->danger()->title('Nomor telepon wajib diisi.')->send();
+        $phone = $this->normalizePhoneForGateway($data['phone'] ?? null);
+        if (! $phone) {
+            Notification::make()->danger()->title('Format nomor tidak valid. Gunakan 08xxx atau 628xxx.')->send();
             return;
         }
 
@@ -385,5 +385,33 @@ class DeviceConfig extends Page implements HasForms
         $normalized = is_string($normalized) ? rtrim($normalized, '/') : $base;
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    private function normalizePhoneForGateway(?string $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', trim($value));
+        if (! is_string($digits) || $digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '0')) {
+            $digits = '62' . substr($digits, 1);
+        } elseif (str_starts_with($digits, '8')) {
+            $digits = '62' . $digits;
+        }
+
+        if (! str_starts_with($digits, '62')) {
+            return null;
+        }
+
+        if (strlen($digits) < 10 || strlen($digits) > 16) {
+            return null;
+        }
+
+        return $digits;
     }
 }

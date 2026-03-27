@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Http;
 
 class GatewayService
 {
+    private const MESSAGE_TIMEOUT_SECONDS = 120;
+
     public function __construct(
         private readonly string $baseUrl,
         private readonly ?string $apiKey = null
@@ -119,24 +121,30 @@ class GatewayService
 
     public function sendTestMessage(string $session, string $to, string $text): array
     {
-        $response = $this->client()->post('/message/send-text', [
+        $response = $this->client()
+            ->connectTimeout(15)
+            ->timeout(self::MESSAGE_TIMEOUT_SECONDS)
+            ->post('/message/send-text', [
             'session' => $session,
             'to' => $to,
             'text' => $text,
             'is_group' => false,
-        ]);
+            ]);
         $response->throw();
         return $response->json() ?? [];
     }
 
     public function sendText(string $session, string $to, string $text): array
     {
-        $response = $this->client()->post('/message/send-text', [
+        $response = $this->client()
+            ->connectTimeout(15)
+            ->timeout(self::MESSAGE_TIMEOUT_SECONDS)
+            ->post('/message/send-text', [
             'session' => $session,
             'to' => $to,
             'text' => $text,
             'is_group' => false,
-        ]);
+            ]);
         $response->throw();
         return $response->json() ?? [];
     }

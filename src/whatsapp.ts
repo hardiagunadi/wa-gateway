@@ -539,6 +539,7 @@ async function onMessageUpdated(update: MessageUpdated) {
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 60 * 1000;
 const RECONNECT_JITTER_MS = 500;
+const RECONNECT_SUPPRESS_TTL_MS = 30 * 1000;
 
 type ReconnectState = {
   attempts: number;
@@ -546,6 +547,46 @@ type ReconnectState = {
 };
 
 const reconnectState = new Map<string, ReconnectState>();
+const reconnectSuppressedUntil = new Map<string, number>();
+
+const normalizeSessionId = (sessionId: string) => String(sessionId || "").trim();
+
+const clearReconnectSuppression = (sessionId: string) => {
+  const id = normalizeSessionId(sessionId);
+  if (!id) return;
+  reconnectSuppressedUntil.delete(id);
+};
+
+const isReconnectSuppressed = (sessionId: string) => {
+  const id = normalizeSessionId(sessionId);
+  if (!id) return false;
+
+  const expiresAt = reconnectSuppressedUntil.get(id);
+  if (!expiresAt) return false;
+  if (expiresAt <= Date.now()) {
+    reconnectSuppressedUntil.delete(id);
+    return false;
+  }
+  return true;
+};
+
+export const suppressReconnect = (
+  sessionId: string,
+  ttlMs = RECONNECT_SUPPRESS_TTL_MS
+) => {
+  const id = normalizeSessionId(sessionId);
+  if (!id) return;
+
+  reconnectSuppressedUntil.set(id, Date.now() + ttlMs);
+  resetReconnectState(id);
+};
+
+export const deleteSessionWithReconnectSuppressed = async (
+  sessionId: string
+) => {
+  suppressReconnect(sessionId);
+  await whatsapp.deleteSession(sessionId);
+};
 
 const getReconnectDelayMs = (attempt: number) => {
   const exp = RECONNECT_BASE_DELAY_MS * 2 ** Math.max(attempt - 1, 0);
@@ -569,6 +610,11 @@ const resetReconnectState = (sessionId: string) => {
 };
 
 const scheduleReconnect = async (sessionId: string) => {
+  if (isReconnectSuppressed(sessionId)) {
+    resetReconnectState(sessionId);
+    return;
+  }
+
   const stored = await listStoredSessions().catch(() => []);
   if (!stored.includes(sessionId)) {
     resetReconnectState(sessionId);
@@ -586,6 +632,15 @@ const scheduleReconnect = async (sessionId: string) => {
   state.timer = setTimeout(async () => {
     state.timer = undefined;
     try {
+      const latestStored = await listStoredSessions().catch(() => []);
+      if (
+        isReconnectSuppressed(sessionId) ||
+        !latestStored.includes(sessionId)
+      ) {
+        resetReconnectState(sessionId);
+        return;
+      }
+
       const existing = await whatsapp.getSessionById(sessionId);
       const status = (existing as any)?.status;
       if (status === "connected" || status === "connecting") {
@@ -595,9 +650,15 @@ const scheduleReconnect = async (sessionId: string) => {
     } catch (err) {
       console.error(`[${sessionId}] reconnect attempt failed`, err);
     } finally {
+      const latestStored = await listStoredSessions().catch(() => []);
       const existing = await whatsapp.getSessionById(sessionId);
       const status = (existing as any)?.status;
-      if (status !== "connected" && status !== "connecting") {
+      if (
+        !isReconnectSuppressed(sessionId) &&
+        latestStored.includes(sessionId) &&
+        status !== "connected" &&
+        status !== "connecting"
+      ) {
         scheduleReconnect(sessionId).catch((err) =>
           console.error(`[${sessionId}] reconnect reschedule failed`, err)
         );
@@ -624,11 +685,16 @@ export const whatsapp = new Whatsapp({
   onConnected(sessionId) {
     console.log(`[${sessionId}] connected`);
     sendDeviceStatus(sessionId, "connected");
+    clearReconnectSuppression(sessionId);
     resetReconnectState(sessionId);
   },
   onDisconnected(sessionId) {
     console.log(`[${sessionId}] disconnected`);
     sendDeviceStatus(sessionId, "disconnected");
+    if (isReconnectSuppressed(sessionId)) {
+      resetReconnectState(sessionId);
+      return;
+    }
     scheduleReconnect(sessionId).catch((err) =>
       console.error(`[${sessionId}] reconnect schedule failed`, err)
     );
@@ -652,7 +718,7 @@ export const requestPairingCode = async (
       if (adapter?.clearData) {
         await adapter.clearData(sessionId);
       }
-      await whatsapp.deleteSession(sessionId);
+      await deleteSessionWithReconnectSuppressed(sessionId);
     } catch (err) {
       console.error("Failed to cleanup pairing session", err);
     }
@@ -694,7 +760,7 @@ export const requestPairingCode = async (
         if (adapter?.clearData) {
           await adapter.clearData(sessionId).catch(() => {});
         }
-        await whatsapp.deleteSession(sessionId).catch(() => {});
+        await deleteSessionWithReconnectSuppressed(sessionId).catch(() => {});
         const res = await startSessionWithPairingCode(sessionId, {
           phoneNumber: phone,
         });

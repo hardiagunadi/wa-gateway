@@ -7,7 +7,11 @@ import path from "path";
 import { toDataURL } from "qrcode";
 import { requestValidator } from "../middlewares/validation.middleware";
 import { createKeyMiddleware } from "../middlewares/key.middleware";
-import { whatsapp, requestPairingCode } from "../whatsapp";
+import {
+  deleteSessionWithReconnectSuppressed,
+  requestPairingCode,
+  whatsapp,
+} from "../whatsapp";
 import { getWaGatewayToken } from "../wa-gateway/auth";
 import {
   deleteDeviceBySessionId,
@@ -167,7 +171,7 @@ const createWaGatewayDeviceRouter = () => {
       if (adapter?.clearData) {
         await adapter.clearData(sessionId).catch(() => {});
       }
-      await whatsapp.deleteSession(sessionId).catch(() => {});
+      await deleteSessionWithReconnectSuppressed(sessionId).catch(() => {});
 
       const token = generateToken();
 
@@ -206,7 +210,7 @@ const createWaGatewayDeviceRouter = () => {
   app.post("/device/delete", async (c) => {
     const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
-    await whatsapp.deleteSession(sessionId);
+    await deleteSessionWithReconnectSuppressed(sessionId);
     await deleteDeviceByToken(token);
     await deleteDeviceBySessionId(sessionId);
     await removeStoredSession(sessionId);
@@ -217,7 +221,7 @@ const createWaGatewayDeviceRouter = () => {
   app.post("/device/disconnect", async (c) => {
     const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
-    await whatsapp.deleteSession(sessionId);
+    await deleteSessionWithReconnectSuppressed(sessionId);
     return c.json({ status: true, message: "device disconnected" });
   });
 
@@ -253,7 +257,7 @@ const createWaGatewayDeviceRouter = () => {
     if (adapter?.clearData) {
       await adapter.clearData(sessionId).catch(() => {});
     }
-    await whatsapp.deleteSession(sessionId).catch(() => {});
+    await deleteSessionWithReconnectSuppressed(sessionId).catch(() => {});
 
     const qr = await new Promise<string | null>(async (r) => {
       await whatsapp.startSession(sessionId, {

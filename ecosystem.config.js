@@ -14,7 +14,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: "500M",
+      max_memory_restart: "320M",
       env: {
         NODE_ENV: "production",
       },
@@ -26,6 +26,7 @@ module.exports = {
       error_file: path.join(rootDir, "logs/pm2-error.log"),
       out_file: path.join(rootDir, "logs/pm2-out.log"),
       merge_logs: true,
+      vizion: false,
       log_date_format: "YYYY-MM-DD HH:mm:ss Z",
       // Graceful shutdown
       kill_timeout: 10000,
