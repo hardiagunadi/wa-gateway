@@ -1,6 +1,6 @@
-# Headless Multi Session WhatsApp Gateway
+# Custom WhatsApp Gateway
 
-A headless multi-session WhatsApp gateway with multi-device support, runnable directly with Node.js.
+Custom WhatsApp gateway with multi-device support, runnable directly with Node.js.
 
 - Multi-device support
 - Multi-session / multiple phone numbers
