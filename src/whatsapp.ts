@@ -89,6 +89,61 @@ const resolveLidFromAuthState = async (sock: any, lidJid: string) => {
   return null;
 };
 
+/**
+ * Baileys v7 delivers the sender's phone-number JID in `key.participantAlt` (group)
+ * or `key.remoteJidAlt` (personal chat) when the primary id is a LID.
+ */
+const getMessageAltJid = (message: MessageReceived): string | null => {
+  const key: any = message.key;
+  const alt = key?.participantAlt || key?.remoteJidAlt || null;
+  return typeof alt === "string" && alt.trim() ? alt.trim() : null;
+};
+
+const resolveLidFromSignalRepository = async (sock: any, lidJid: string) => {
+  try {
+    const pn = await sock?.signalRepository?.lidMapping?.getPNForLID?.(lidJid);
+    return typeof pn === "string" && pn.trim() ? ensurePhoneJid(pn) : null;
+  } catch (err) {
+    console.error("Failed to resolve lid via signal repository", err);
+    return null;
+  }
+};
+
+/**
+ * Extra fields for the bot: stable message id, mentions, quoted participant and the bot's own ids.
+ * Only adds fields; existing payload keys are untouched.
+ */
+const getBotContext = async (message: MessageReceived) => {
+  const content: any = message.message || {};
+  const ctx =
+    content.extendedTextMessage?.contextInfo ||
+    content.imageMessage?.contextInfo ||
+    content.videoMessage?.contextInfo ||
+    content.documentMessage?.contextInfo ||
+    content.audioMessage?.contextInfo ||
+    null;
+
+  let botJid: string | null = null;
+  let botLid: string | null = null;
+  try {
+    const session = await whatsapp.getSessionById(message.sessionId);
+    const user: any = (session as any)?.sock?.user;
+    botJid = typeof user?.id === "string" ? user.id : null;
+    botLid = typeof user?.lid === "string" ? user.lid : null;
+  } catch {
+    // bot ids are optional
+  }
+
+  return {
+    messageId: message.key.id ?? null,
+    mentions: Array.isArray(ctx?.mentionedJid) ? ctx.mentionedJid : [],
+    quotedParticipant:
+      typeof ctx?.participant === "string" ? ctx.participant : null,
+    botJid,
+    botLid,
+  };
+};
+
 const resolveLidFromGroups = async (sessionId: string, lidJid: string) => {
   const cached = getCachedLid(lidJid);
   if (cached) return cached;
@@ -184,11 +239,27 @@ const resolveSenderInfo = async (message: MessageReceived) => {
     };
   }
 
+  // Preferred: phone-number JID delivered together with the message (participantAlt/remoteJidAlt).
+  const altJid = getMessageAltJid(message);
+  if (altJid && !isLidJid(altJid)) {
+    setCachedLid(rawSender, altJid);
+    const participant = sanitizeJidUser(altJid);
+    const senderJid = normalizeSenderJid(altJid, participant);
+    return {
+      senderJid,
+      participant,
+      displayName: pushName,
+      phoneResolved: true,
+    };
+  }
+
   // Attempt to resolve @lid sender using auth state mapping (no group needed).
   try {
     const session = await whatsapp.getSessionById(message.sessionId);
     const sock: any = (session as any)?.sock;
-    const resolvedFromAuth = await resolveLidFromAuthState(sock, rawSender);
+    const resolvedFromAuth =
+      (await resolveLidFromAuthState(sock, rawSender)) ||
+      (await resolveLidFromSignalRepository(sock, rawSender));
     if (resolvedFromAuth) {
       setCachedLid(rawSender, resolvedFromAuth);
       const participant = sanitizeJidUser(resolvedFromAuth);
@@ -369,8 +440,12 @@ async function buildIncomingPayload(
 
   const fromJid = message.key.remoteJid ?? null;
   const isGroup = Boolean(fromJid && fromJid.includes("@g.us"));
-  const { senderJid, participant } =
+  const { senderJid, participant, phoneResolved } =
     senderInfo || (await resolveSenderInfo(message));
+  const rawSender: string | null =
+    (message.key as any)?.participant ?? message.key.remoteJid ?? null;
+  const senderLid = rawSender && isLidJid(rawSender) ? rawSender : null;
+  const botContext = await getBotContext(message);
   const resolvedFrom =
     !isGroup && fromJid && isLidJid(fromJid) && senderJid ? senderJid : fromJid;
 
@@ -379,6 +454,9 @@ async function buildIncomingPayload(
     from: resolvedFrom,
     sender: senderJid,
     participant,
+    senderLid,
+    senderPn: senderLid && phoneResolved ? senderJid : null,
+    ...botContext,
     isGroup,
     group: isGroup ? { id: fromJid } : null,
     message:
