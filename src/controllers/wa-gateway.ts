@@ -9,6 +9,7 @@ import { requestValidator } from "../middlewares/validation.middleware";
 import { createKeyMiddleware } from "../middlewares/key.middleware";
 import {
   deleteSessionWithReconnectSuppressed,
+  recoverSession,
   requestPairingCode,
   whatsapp,
 } from "../whatsapp";
@@ -17,10 +18,15 @@ import {
   deleteDeviceBySessionId,
   deleteDeviceByToken,
   generateToken,
+  getDeviceBySessionId,
   getDeviceByToken,
+  listDevices,
   upsertDevice,
 } from "../wa-gateway/registry";
-import { getSessionWebhookConfig } from "../session-config";
+import {
+  getSessionWebhookConfig,
+  mergeSessionWebhookConfig,
+} from "../session-config";
 import { addStoredSession, removeStoredSession } from "../session-store";
 import {
   normalizeGroupId,
@@ -93,6 +99,99 @@ const parseScheduledAtMs = (value: string) => {
 const createWaGatewayDeviceRouter = () => {
   const app = new Hono();
 
+  const restartDeviceForQr = async (sessionId: string) => {
+    const adapter = (whatsapp as any).adapter;
+    await removeStoredSession(sessionId).catch(() => {});
+    if (adapter?.clearData) {
+      await adapter.clearData(sessionId).catch(() => {});
+    }
+    await deleteSessionWithReconnectSuppressed(sessionId).catch(() => {});
+    await addStoredSession(sessionId);
+
+    const qr = await new Promise<string | null>(async (resolve) => {
+      await whatsapp.startSession(sessionId, {
+        onConnected() {
+          resolve(null);
+        },
+        onQRUpdated(value) {
+          resolve(value);
+        },
+        printQR: false,
+      });
+    });
+
+    return {
+      device: sessionId,
+      qr,
+      qr_image: qr ? await toDataURL(qr) : null,
+    };
+  };
+
+  app.get("/device/list", async (c) => {
+    const devices = await listDevices();
+    const data = await Promise.all(
+      devices.map(async (device) => {
+        const session = await whatsapp.getSessionById(device.sessionId);
+        const status = (session as any)?.status || "disconnected";
+        const userId = (session as any)?.sock?.user?.id || null;
+        const config = await getSessionWebhookConfig(device.sessionId);
+
+        return {
+          device_name: device.name || device.sessionId,
+          device: device.sessionId,
+          phone: userId || device.phone || null,
+          status: status === "connected" ? "online" : "offline",
+          webhook_url: config.webhookBaseUrl || device.webhookUrl || null,
+          created_at: device.createdAt,
+        };
+      })
+    );
+
+    return c.json({
+      status: "success",
+      message: "Success",
+      data,
+    });
+  });
+
+  app.post("/device/rescan", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const parsed = z.object({ device: z.string().min(1) }).safeParse(body);
+    if (!parsed.success) {
+      throw new HTTPException(400, { message: "Invalid device" });
+    }
+
+    const device = await getDeviceBySessionId(parsed.data.device.trim());
+    if (!device) {
+      throw new HTTPException(404, { message: "Device not found" });
+    }
+
+    const data = await restartDeviceForQr(device.sessionId);
+
+    return c.json({ status: true, message: "Success", data });
+  });
+
+  app.post("/device/reconnect", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const parsed = z.object({ device: z.string().min(1) }).safeParse(body);
+    if (!parsed.success) {
+      throw new HTTPException(400, { message: "Invalid device" });
+    }
+
+    const device = await getDeviceBySessionId(parsed.data.device.trim());
+    if (!device) {
+      throw new HTTPException(404, { message: "Device not found" });
+    }
+
+    const recovered = await recoverSession(device.sessionId, "health-check");
+
+    return c.json({
+      status: true,
+      message: recovered ? "Recovery started" : "Recovery skipped",
+      data: { device: device.sessionId, recovered },
+    });
+  });
+
   app.post(
     "/device/create",
     requestValidator(
@@ -103,6 +202,7 @@ const createWaGatewayDeviceRouter = () => {
         product: z.string().optional(),
         bank: z.string().optional(),
         periode: z.string().optional(),
+        webhook_base_url: z.string().url().optional(),
       })
     ),
     async (c) => {
@@ -120,6 +220,13 @@ const createWaGatewayDeviceRouter = () => {
       });
 
       await addStoredSession(sessionId);
+      await mergeSessionWebhookConfig(sessionId, {
+        deviceName: payload.name,
+        webhookBaseUrl: payload.webhook_base_url,
+        incomingEnabled: true,
+        trackingEnabled: true,
+        deviceStatusEnabled: true,
+      });
 
       const qr = await new Promise<string | null>(async (r) => {
         await whatsapp.startSession(sessionId, {
@@ -156,6 +263,7 @@ const createWaGatewayDeviceRouter = () => {
       z.object({
         phone: z.string(),
         name: z.string().optional(),
+        webhook_base_url: z.string().url().optional(),
       })
     ),
     async (c) => {
@@ -185,6 +293,13 @@ const createWaGatewayDeviceRouter = () => {
       });
 
       await addStoredSession(sessionId);
+      await mergeSessionWebhookConfig(sessionId, {
+        deviceName: payload.name,
+        webhookBaseUrl: payload.webhook_base_url,
+        incomingEnabled: true,
+        trackingEnabled: true,
+        deviceStatusEnabled: true,
+      });
 
       const pairingCode = await requestPairingCode(sessionId, payload.phone).catch(
         (err: any) => {
@@ -251,36 +366,12 @@ const createWaGatewayDeviceRouter = () => {
     const token = requireToken(getWaGatewayToken(c));
     const sessionId = await resolveSessionIdFromToken(token);
 
-    const adapter = (whatsapp as any).adapter;
-    await deleteDeviceBySessionId(sessionId).catch(() => {});
-    await removeStoredSession(sessionId).catch(() => {});
-    if (adapter?.clearData) {
-      await adapter.clearData(sessionId).catch(() => {});
-    }
-    await deleteSessionWithReconnectSuppressed(sessionId).catch(() => {});
-
-    const qr = await new Promise<string | null>(async (r) => {
-      await whatsapp.startSession(sessionId, {
-        onConnected() {
-          r(null);
-        },
-        onQRUpdated(qr) {
-          r(qr);
-        },
-        printQR: false,
-      });
-    });
-
-    const qrImage = qr ? await toDataURL(qr) : null;
+    const data = await restartDeviceForQr(sessionId);
 
     return c.json({
       status: true,
       message: "Success",
-      data: {
-        device: sessionId,
-        qr,
-        qr_image: qrImage,
-      },
+      data,
     });
   });
 

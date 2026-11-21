@@ -9,4 +9,5 @@ export const webhookClient = axios.create({
   headers: {
     key: env.KEY,
   },
+  timeout: 10000,
 });

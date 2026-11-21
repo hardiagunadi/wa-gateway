@@ -36,13 +36,30 @@ const readAll = async (): Promise<Record<string, SessionWebhookConfig>> => {
   try {
     const raw = await fs.readFile(sessionConfigPath, "utf-8");
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") {
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       return parsed as Record<string, SessionWebhookConfig>;
     }
     return {};
   } catch {
     return {};
   }
+};
+
+export const mergeSessionWebhookConfig = async (
+  sessionId: string,
+  config: SessionWebhookConfig
+): Promise<void> => {
+  const id = String(sessionId || "").trim();
+  if (!id) return;
+
+  const all = await readAll();
+  all[id] = {
+    ...(all[id] ?? {}),
+    ...config,
+  };
+
+  await fs.mkdir(path.dirname(sessionConfigPath), { recursive: true });
+  await fs.writeFile(sessionConfigPath, JSON.stringify(all, null, 2), "utf-8");
 };
 
 const normalizeConfig = (cfg: any): SessionWebhookConfig => ({
