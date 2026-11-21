@@ -26,6 +26,7 @@ import path from "path";
 const createWebhookClient = (apiKey?: string) =>
   axios.create({
     headers: apiKey ? { key: apiKey } : {},
+    timeout: 10000,
   });
 
 const sanitizeJidUser = (jid?: string | null) => {
@@ -342,7 +343,14 @@ async function sendDeviceStatus(
 
   await createWebhookClient(config.apiKey)
     .post(`${baseUrl}/session`, { session: sessionId, status })
-    .catch(console.error);
+    .catch((error) => {
+      const code = axios.isAxiosError(error)
+        ? error.code || error.response?.status
+        : "unknown";
+      console.warn(
+        `[${sessionId}] status webhook failed status=${status} code=${code}`
+      );
+    });
 }
 
 async function buildIncomingPayload(
@@ -540,6 +548,8 @@ const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 60 * 1000;
 const RECONNECT_JITTER_MS = 500;
 const RECONNECT_SUPPRESS_TTL_MS = 30 * 1000;
+const CONNECTING_STALE_AFTER_MS = 90 * 1000;
+const WATCHDOG_INTERVAL_MS = 30 * 1000;
 
 type ReconnectState = {
   attempts: number;
@@ -548,6 +558,7 @@ type ReconnectState = {
 
 const reconnectState = new Map<string, ReconnectState>();
 const reconnectSuppressedUntil = new Map<string, number>();
+const connectingSince = new Map<string, number>();
 
 const normalizeSessionId = (sessionId: string) => String(sessionId || "").trim();
 
@@ -586,6 +597,44 @@ export const deleteSessionWithReconnectSuppressed = async (
 ) => {
   suppressReconnect(sessionId);
   await whatsapp.deleteSession(sessionId);
+};
+
+const discardRuntimeSession = async (sessionId: string) => {
+  const runtime = (whatsapp as any).sessions as
+    | Map<string, { sock?: { end?: (error?: Error) => void } }>
+    | undefined;
+  const retryCount = (whatsapp as any).retryCount as
+    | Map<string, number>
+    | undefined;
+  const session = runtime?.get(sessionId);
+
+  retryCount?.set(sessionId, 10);
+  try {
+    session?.sock?.end?.(new Error("Session recovery"));
+  } catch {}
+
+  for (let attempt = 0; attempt < 50 && runtime?.has(sessionId); attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  runtime?.delete(sessionId);
+};
+
+export const recoverSession = async (
+  sessionId: string,
+  source = "automatic"
+) => {
+  const id = normalizeSessionId(sessionId);
+  if (!id || isReconnectSuppressed(id)) return false;
+
+  const stored = await listStoredSessions().catch(() => []);
+  if (!stored.includes(id)) return false;
+
+  await discardRuntimeSession(id);
+  connectingSince.delete(id);
+  console.log(`[${id}] recovery starting source=${source}`);
+  await whatsapp.startSession(id, { printQR: false });
+  return true;
 };
 
 const getReconnectDelayMs = (attempt: number) => {
@@ -646,7 +695,7 @@ const scheduleReconnect = async (sessionId: string) => {
       if (status === "connected" || status === "connecting") {
         return;
       }
-      await whatsapp.startSession(sessionId, { printQR: false });
+      await recoverSession(sessionId, `retry-${attempt}`);
     } catch (err) {
       console.error(`[${sessionId}] reconnect attempt failed`, err);
     } finally {
@@ -679,18 +728,33 @@ export const whatsapp = new Whatsapp({
 
   onConnecting(sessionId) {
     console.log(`[${sessionId}] connecting`);
+    if (!connectingSince.has(sessionId)) {
+      connectingSince.set(sessionId, Date.now());
+    }
     sendDeviceStatus(sessionId, "connecting");
     clearReconnectTimer(sessionId);
   },
   onConnected(sessionId) {
     console.log(`[${sessionId}] connected`);
+    connectingSince.delete(sessionId);
     sendDeviceStatus(sessionId, "connected");
     clearReconnectSuppression(sessionId);
     resetReconnectState(sessionId);
   },
-  onDisconnected(sessionId) {
-    console.log(`[${sessionId}] disconnected`);
+  onDisconnected(
+    sessionId,
+    details?: { code?: number; reason?: string; message?: string }
+  ) {
+    connectingSince.delete(sessionId);
+    console.warn(
+      `[${sessionId}] disconnected code=${details?.code ?? "unknown"} reason=${details?.reason ?? "unknown"} message=${details?.message ?? "unknown"}`
+    );
     sendDeviceStatus(sessionId, "disconnected");
+    if (details?.code === 401) {
+      removeStoredSession(sessionId).catch(() => {});
+      resetReconnectState(sessionId);
+      return;
+    }
     if (isReconnectSuppressed(sessionId)) {
       resetReconnectState(sessionId);
       return;
@@ -703,6 +767,23 @@ export const whatsapp = new Whatsapp({
   onMessageReceived: onIncomingMessage,
   onMessageUpdated,
 });
+
+const watchdog = setInterval(async () => {
+  for (const [sessionId, startedAt] of connectingSince.entries()) {
+    if (Date.now() - startedAt < CONNECTING_STALE_AFTER_MS) continue;
+
+    console.warn(`[${sessionId}] connecting watchdog expired`);
+    try {
+      await recoverSession(sessionId, "connecting-watchdog");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[${sessionId}] watchdog recovery failed message=${message}`);
+      connectingSince.set(sessionId, Date.now());
+    }
+  }
+}, WATCHDOG_INTERVAL_MS);
+
+watchdog.unref();
 
 export const requestPairingCode = async (
   sessionId: string,

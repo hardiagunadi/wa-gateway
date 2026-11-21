@@ -16,7 +16,10 @@ import {
   createWaGatewayCompatController,
   createWaGatewayCompatV2Controller,
 } from "./controllers/wa-gateway";
-import { startWaGatewayScheduler, stopWaGatewayScheduler } from "./wa-gateway/scheduler";
+import {
+  startWaGatewayScheduler,
+  stopWaGatewayScheduler,
+} from "./wa-gateway/scheduler";
 
 const isBaileysConnectionClosed = (err: unknown) => {
   const boom = err as {
@@ -30,24 +33,43 @@ const isBaileysConnectionClosed = (err: unknown) => {
   );
 };
 
-const handleFatalError = (err: unknown, origin: string) => {
+const isTransientNetworkError = (err: unknown) => {
+  const error = err as {
+    code?: string;
+    cause?: { code?: string; errors?: Array<{ code?: string }> };
+    message?: string;
+  };
+  const codes = [
+    error?.code,
+    error?.cause?.code,
+    ...(error?.cause?.errors || []).map((item) => item?.code),
+  ].filter(Boolean);
+
+  return (
+    codes.some((code) =>
+      ["ETIMEDOUT", "ECONNRESET", "ECONNABORTED", "ENOTFOUND", "EAI_AGAIN"].includes(
+        String(code)
+      )
+    ) || /fetch failed|timeout|network/i.test(String(error?.message || ""))
+  );
+};
+
+const shouldShutdownForProcessError = (err: unknown, origin: string) => {
   if (isBaileysConnectionClosed(err)) {
     console.warn(
       `${origin}: bailey's socket closed while sending ACK; ignoring.`
     );
-    return;
+    return false;
+  }
+
+  if (isTransientNetworkError(err)) {
+    console.warn(`${origin}: transient network error; keeping process alive.`, err);
+    return false;
   }
 
   console.error(`${origin}:`, err);
-  process.exit(1);
+  return true;
 };
-
-process.on("unhandledRejection", (reason) =>
-  handleFatalError(reason, "unhandledRejection")
-);
-process.on("uncaughtException", (err) =>
-  handleFatalError(err, "uncaughtException")
-);
 
 const app = new Hono();
 
@@ -146,12 +168,12 @@ const gracefulShutdown = (signal: string) => {
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-// Handle uncaught exceptions and unhandled rejections
 process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
-  gracefulShutdown("uncaughtException");
+  if (shouldShutdownForProcessError(err, "uncaughtException")) {
+    gracefulShutdown("uncaughtException");
+  }
 });
 
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+process.on("unhandledRejection", (reason) => {
+  shouldShutdownForProcessError(reason, "unhandledRejection");
 });
